@@ -1,0 +1,139 @@
+import Database from 'better-sqlite3';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const dataDir = path.resolve(__dirname, '../../data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+const dbPath = path.join(dataDir, 'algovortex.db');
+export const db = new Database(dbPath);
+
+// Enable WAL mode and foreign keys for high performance and integrity
+db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
+
+export function initDatabase() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      full_name TEXT NOT NULL,
+      avatar_url TEXT DEFAULT '',
+      role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin')),
+      bio TEXT DEFAULT '',
+      github_username TEXT DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS topics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      icon TEXT NOT NULL,
+      description TEXT,
+      order_index INTEGER DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS problems (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      difficulty TEXT NOT NULL CHECK(difficulty IN ('Easy', 'Medium', 'Hard')),
+      topic_slug TEXT NOT NULL,
+      description TEXT NOT NULL,
+      input_format TEXT,
+      output_format TEXT,
+      constraints TEXT,
+      examples_json TEXT NOT NULL,
+      hints_json TEXT NOT NULL,
+      starter_code_json TEXT NOT NULL,
+      editorial_markdown TEXT,
+      time_complexity TEXT,
+      space_complexity TEXT,
+      acceptance_rate REAL DEFAULT 70.0,
+      total_submissions INTEGER DEFAULT 0,
+      total_accepted INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS test_cases (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      problem_id INTEGER NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
+      input TEXT NOT NULL,
+      expected_output TEXT NOT NULL,
+      is_sample INTEGER DEFAULT 0,
+      explanation TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS submissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      problem_id INTEGER NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
+      code TEXT NOT NULL,
+      language TEXT NOT NULL,
+      verdict TEXT NOT NULL,
+      execution_time_ms INTEGER DEFAULT 0,
+      memory_kb INTEGER DEFAULT 0,
+      test_cases_passed INTEGER DEFAULT 0,
+      total_test_cases INTEGER DEFAULT 0,
+      output_log TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS bookmarks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      problem_id INTEGER NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, problem_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS user_progress (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      problem_id INTEGER NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
+      status TEXT NOT NULL CHECK(status IN ('solved', 'attempted')),
+      last_submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, problem_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS roadmaps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT UNIQUE NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      level TEXT NOT NULL,
+      total_steps INTEGER DEFAULT 0,
+      estimated_hours INTEGER DEFAULT 0,
+      items_json TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS contests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT UNIQUE NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      start_time DATETIME NOT NULL,
+      end_time DATETIME NOT NULL,
+      status TEXT NOT NULL,
+      problems_json TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_submissions_user ON submissions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_submissions_problem ON submissions(problem_id);
+    CREATE INDEX IF NOT EXISTS idx_progress_user ON user_progress(user_id);
+    CREATE INDEX IF NOT EXISTS idx_problems_topic ON problems(topic_slug);
+    CREATE INDEX IF NOT EXISTS idx_problems_difficulty ON problems(difficulty);
+  `);
+
+  console.log('[Database] SQLite initialized successfully at:', dbPath);
+}

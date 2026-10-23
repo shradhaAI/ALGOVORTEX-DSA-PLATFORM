@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-dark: #070709;
+    --bg-card: rgba(18, 18, 22, 0.75);
+    --border-orange: rgba(249, 115, 22, 0.25);
+    --border-orange-bright: rgba(249, 115, 22, 0.6);
+    --glow-orange: 0 0 25px rgba(249, 115, 22, 0.35);
+    --font-cinzel: 'Cinzel', serif;
+    --font-outfit: 'Outfit', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    background-color: var(--bg-dark);
+    font-family: var(--font-outfit);
+    color: #e2e8f0;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0d0d11;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #272732;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #f97316;
+  }
+}
+
+.font-brand {
+  font-family: 'Cinzel', serif;
+}
+
+.font-mono-code {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Cinematic Glowing and ember styles matching reference */
+.glow-border {
+  border: 1px solid rgba(249, 115, 22, 0.28);
+  box-shadow: 0 0 15px rgba(249, 115, 22, 0.12), inset 0 0 15px rgba(249, 115, 22, 0.04);
+}
+
+.glow-border-intense {
+  border: 1px solid rgba(249, 115, 22, 0.65);
+  box-shadow: 0 0 25px rgba(249, 115, 22, 0.3), inset 0 0 20px rgba(249, 115, 22, 0.08);
+}
+
+.glow-text-orange {
+  text-shadow: 0 0 20px rgba(249, 115, 22, 0.65);
+}
+
+.glow-btn-fire {
+  background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
+  box-shadow: 0 4px 20px rgba(234, 88, 12, 0.45);
+  transition: all 0.25s ease-in-out;
+}
+
+.glow-btn-fire:hover {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  box-shadow: 0 6px 28px rgba(249, 115, 22, 0.65);
+  transform: translateY(-1px);
+}
+
+.glow-btn-fire:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 14px rgba(234, 88, 12, 0.4);
+}
+
+/* Ambient particle / ember animation */
+@keyframes floatEmber {
+  0% {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translateY(-80px) translateX(20px) scale(0.8);
+    opacity: 0.4;
+  }
+  100% {
+    transform: translateY(-160px) translateX(-15px) scale(0.3);
+    opacity: 0;
+  }
+}
+
+.ember-particle {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, #f97316 0%, rgba(234, 88, 12, 0) 70%);
+  pointer-events: none;
+  animation: floatEmber linear infinite;
+}
