@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
@@ -23,11 +23,76 @@ import {
   HelpCircle,
   ChevronDown,
   Play,
+  Pause,
+  Volume2,
+  VolumeX,
+  SkipForward,
+  Maximize2,
 } from 'lucide-react';
 
 export const LandingPage: React.FC = () => {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
+
+  // ── Intro Video State ──────────────────────────────────────────────────────
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoVisible, setVideoVisible] = useState(false);
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  const [videoMuted, setVideoMuted] = useState(true);
+  const [videoEnded, setVideoEnded] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+  const [videoDismissed, setVideoDismissed] = useState(false);
+  const [prefersReducedMotion] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+
+  const handlePlayIntro = useCallback(() => {
+    setVideoVisible(true);
+    setVideoEnded(false);
+    setVideoError(false);
+    setTimeout(() => {
+      if (videoRef.current) {
+        videoRef.current.muted = true;
+        videoRef.current.play().catch(() => setVideoError(true));
+        setVideoPlaying(true);
+      }
+    }, 100);
+  }, []);
+
+  const handleTogglePlay = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (v.paused) { v.play(); setVideoPlaying(true); }
+    else { v.pause(); setVideoPlaying(false); }
+  };
+
+  const handleToggleMute = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = !v.muted;
+    setVideoMuted(v.muted);
+  };
+
+  const handleSkip = () => {
+    setVideoVisible(false);
+    setVideoDismissed(true);
+    setVideoPlaying(false);
+    if (videoRef.current) videoRef.current.pause();
+  };
+
+  const handleVideoEnded = () => {
+    setVideoPlaying(false);
+    setVideoEnded(true);
+  };
+
+  const handleReplay = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.currentTime = 0;
+    v.play();
+    setVideoPlaying(true);
+    setVideoEnded(false);
+  };
 
   useEffect(() => {
     async function loadTopics() {
@@ -69,6 +134,114 @@ export const LandingPage: React.FC = () => {
       <EmberParticles />
       <Navbar />
 
+      {/* ── CINEMATIC INTRO VIDEO OVERLAY ───────────────────────────────────── */}
+      {videoVisible && !videoDismissed && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95 backdrop-blur-sm">
+          {/* Dark orange vignette */}
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,#0a0305_100%)]" />
+
+          <div className="relative w-full max-w-4xl mx-4">
+            {/* Title badge */}
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <img src="/assets/logo_dark.png" alt="AlgoVortex" className="h-8 w-auto" />
+                <div>
+                  <p className="font-brand text-sm font-black text-white uppercase tracking-widest">AlgoVortex</p>
+                  <p className="font-mono text-[10px] text-orange-400 tracking-[0.25em]">GAME CHANGER</p>
+                </div>
+              </div>
+              <button
+                onClick={handleSkip}
+                className="flex items-center space-x-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur hover:bg-white/20 transition-colors"
+              >
+                <SkipForward className="h-3.5 w-3.5" />
+                <span>Skip Intro</span>
+              </button>
+            </div>
+
+            {/* Video container */}
+            <div className="relative overflow-hidden rounded-2xl border border-orange-500/40 shadow-[0_0_60px_rgba(249,115,22,0.25)]">
+              {videoError ? (
+                <div className="flex h-64 flex-col items-center justify-center space-y-4 bg-[#0d0d13] text-center">
+                  <Flame className="h-12 w-12 text-orange-500/50" />
+                  <div>
+                    <p className="font-brand font-bold text-white">Video Unavailable</p>
+                    <p className="mt-1 text-xs text-gray-400">Ensure algovortex-intro.mp4 is in public/videos/</p>
+                  </div>
+                  <button onClick={handleSkip} className="glow-btn-fire rounded-xl px-6 py-2 text-sm font-bold text-white">
+                    Enter Platform
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <video
+                    ref={videoRef}
+                    className="w-full"
+                    playsInline
+                    muted
+                    preload="metadata"
+                    poster="/assets/cinematic_bg.jpg"
+                    onEnded={handleVideoEnded}
+                    onError={() => setVideoError(true)}
+                    onPlay={() => setVideoPlaying(true)}
+                    onPause={() => setVideoPlaying(false)}
+                  >
+                    <source src="/videos/algovortex-intro.mp4" type="video/mp4" />
+                    Your browser does not support HTML5 video.
+                  </video>
+
+                  {/* Orange overlay gradient */}
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/80 to-transparent" />
+
+                  {/* Controls bar */}
+                  <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-5 pb-4">
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={videoEnded ? handleReplay : handleTogglePlay}
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-500 text-white shadow-lg hover:bg-orange-400 transition-colors"
+                        title={videoEnded ? 'Replay' : videoPlaying ? 'Pause' : 'Play'}
+                      >
+                        {videoEnded ? (
+                          <Play className="h-4 w-4" />
+                        ) : videoPlaying ? (
+                          <Pause className="h-4 w-4" />
+                        ) : (
+                          <Play className="h-4 w-4" />
+                        )}
+                      </button>
+                      <button
+                        onClick={handleToggleMute}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+                        title={videoMuted ? 'Unmute' : 'Mute'}
+                      >
+                        {videoMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {videoEnded && (
+                        <Link
+                          to="/problems"
+                          onClick={handleSkip}
+                          className="glow-btn-fire flex items-center space-x-1.5 rounded-xl px-5 py-2 text-xs font-bold text-white shadow"
+                        >
+                          <span>Start Coding</span>
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* "CODE. SOLVE. CONQUER." tagline below video */}
+            <p className="mt-3 text-center font-mono text-xs font-bold tracking-[0.3em] text-orange-400/70">
+              CODE. SOLVE. CONQUER.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Hero Section */}
       <section className="relative z-10 flex min-h-[90vh] flex-col justify-center overflow-hidden px-4 pt-16 pb-24 sm:px-6 lg:px-8">
         {/* Subtle orange glow orb */}
@@ -108,6 +281,15 @@ export const LandingPage: React.FC = () => {
               <span>Start Coding</span>
               <ArrowRight className="h-5 w-5" />
             </Link>
+            {!videoDismissed && !prefersReducedMotion && (
+              <button
+                onClick={handlePlayIntro}
+                className="flex w-full items-center justify-center space-x-2 rounded-xl border border-orange-500/50 bg-orange-950/30 px-8 py-4 text-base font-semibold text-orange-300 transition-all hover:border-orange-400 hover:bg-orange-900/40 sm:w-auto"
+              >
+                <Play className="h-5 w-5 fill-orange-400 text-orange-400" />
+                <span>Watch Intro</span>
+              </button>
+            )}
             <Link
               to="/visualizer"
               className="flex w-full items-center justify-center space-x-2 rounded-xl border border-orange-500/30 bg-[#14141e] px-8 py-4 text-base font-semibold text-gray-200 transition-all hover:border-orange-500 hover:bg-[#1a1a26] sm:w-auto"
@@ -117,52 +299,36 @@ export const LandingPage: React.FC = () => {
             </Link>
           </div>
 
-          {/* Genuine Product Preview Mockup */}
-          <div className="relative mt-16 mx-auto max-w-5xl rounded-2xl border border-orange-500/30 bg-[#0d0d13]/90 p-3 shadow-[0_0_50px_rgba(249,115,22,0.15)] backdrop-blur-xl">
+          {/* Cinematic Hero Video Player (Always Visible, Responsive, Poster Fallback, Controls) */}
+          <div className="relative mt-12 mx-auto max-w-5xl rounded-2xl border border-orange-500/40 bg-[#0d0d13]/95 p-3 shadow-[0_0_60px_rgba(249,115,22,0.25)] backdrop-blur-xl">
             {/* Window bar */}
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5 text-xs text-gray-400">
               <div className="flex items-center space-x-2">
                 <span className="h-3 w-3 rounded-full bg-red-500/80" />
                 <span className="h-3 w-3 rounded-full bg-amber-500/80" />
                 <span className="h-3 w-3 rounded-full bg-emerald-500/80" />
-                <span className="ml-3 font-mono text-gray-300 font-medium">algovortex-judge // problem_01: two-sum.py</span>
+                <span className="ml-3 font-mono text-gray-300 font-medium tracking-wider">
+                  ALGOVORTEX // OFFICIAL ANIME TRAILER & PLATFORM PREVIEW
+                </span>
               </div>
-              <div className="flex items-center space-x-2 text-emerald-400 font-mono text-[11px]">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>Verdict: Accepted (42ms)</span>
+              <div className="flex items-center space-x-2 text-orange-400 font-mono text-[11px] font-bold">
+                <Flame className="h-3.5 w-3.5 animate-pulse" />
+                <span>GRINDING ERA</span>
               </div>
             </div>
 
-            {/* Split Mockup */}
-            <div className="grid grid-cols-1 gap-4 p-4 text-left md:grid-cols-12">
-              {/* Left problem statement preview */}
-              <div className="space-y-3 rounded-xl border border-white/5 bg-[#12121a] p-4 text-xs md:col-span-5">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-white text-sm">1. Two Sum</span>
-                  <span className="rounded-full bg-emerald-950/60 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
-                    Easy
-                  </span>
-                </div>
-                <p className="text-gray-400 leading-relaxed">
-                  Given an array of integers <code className="text-orange-400">nums</code> and an integer <code className="text-orange-400">target</code>, return indices of the two numbers that add up to target.
-                </p>
-                <div className="rounded-lg bg-[#0a0a0f] p-2.5 font-mono text-[11px] text-gray-300">
-                  <span className="text-gray-400">Input:</span> nums = [2, 7, 11, 15], target = 9<br />
-                  <span className="text-gray-400">Output:</span> [0, 1]
-                </div>
-              </div>
-
-              {/* Right code editor preview */}
-              <div className="space-y-2 rounded-xl border border-white/5 bg-[#0b0b10] p-4 font-mono text-xs text-gray-300 md:col-span-7">
-                <div className="text-gray-400"># AlgoVortex Optimal Solution: Hash Map O(N)</div>
-                <div><span className="text-purple-400">def</span> <span className="text-blue-400">twoSum</span>(nums, target):</div>
-                <div className="pl-4">seen = &#123;&#125;</div>
-                <div className="pl-4"><span className="text-purple-400">for</span> i, num <span className="text-purple-400">in</span> <span className="text-yellow-400">enumerate</span>(nums):</div>
-                <div className="pl-8">complement = target - num</div>
-                <div className="pl-8"><span className="text-purple-400">if</span> complement <span className="text-purple-400">in</span> seen:</div>
-                <div className="pl-12 text-emerald-400"><span className="text-purple-400">return</span> [seen[complement], i]</div>
-                <div className="pl-8">seen[num] = i</div>
-              </div>
+            {/* Video Canvas Container */}
+            <div className="relative overflow-hidden rounded-xl bg-black aspect-video max-h-[520px] flex items-center justify-center">
+              <video
+                className="w-full h-full object-cover"
+                controls
+                playsInline
+                preload="metadata"
+                poster="/assets/cinematic_bg.jpg"
+              >
+                <source src="/videos/algovortex-intro.mp4" type="video/mp4" />
+                Your browser does not support HTML5 video playback.
+              </video>
             </div>
           </div>
         </div>

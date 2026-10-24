@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { db } from '../db/database.js';
 import { hashPassword, comparePassword, generateToken, requireAuth, AuthRequest } from '../middleware/auth.js';
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -172,6 +173,92 @@ router.post('/update-profile', requireAuth, (req: AuthRequest, res: Response): v
     res.json({ success: true, message: 'Profile updated successfully.' });
   } catch (error: any) {
     res.status(500).json({ success: false, message: 'Failed to update profile.' });
+  }
+});
+
+// ── Forgot Password ──────────────────────────────────────────────────────────
+router.post('/forgot-password', async (req, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      res.status(400).json({ success: false, message: 'Email address is required.' });
+      return;
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Always respond with success to prevent email enumeration attacks
+    const userRow = db.prepare('SELECT id FROM users WHERE email = ?').get(normalizedEmail) as { id: number } | undefined;
+
+    if (userRow) {
+      // Generate a secure, time-limited token
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+
+      // Store token in DB (upsert by email)
+      db.prepare(`
+        INSERT INTO password_reset_tokens (user_id, token, expires_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET token = excluded.token, expires_at = excluded.expires_at, used = 0
+      `).run(userRow.id, token, expiresAt);
+
+      // Log the reset link (email delivery requires SMTP config)
+      const resetLink = `http://localhost:5173/reset-password?token=${token}`;
+      console.log(`[Auth] Password reset token for ${normalizedEmail}: ${resetLink}`);
+      console.log('[Auth] Configure SMTP in .env to send this via email automatically.');
+    }
+
+    // Always return 200 to prevent email enumeration
+    res.json({
+      success: true,
+      message: 'If an account with that email exists, a password reset link has been sent.',
+    });
+  } catch (error: any) {
+    console.error('[Auth] Forgot password error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+});
+
+// ── Reset Password ───────────────────────────────────────────────────────────
+router.post('/reset-password', async (req, res: Response): Promise<void> => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      res.status(400).json({ success: false, message: 'Token and new password are required.' });
+      return;
+    }
+    if (newPassword.length < 8) {
+      res.status(400).json({ success: false, message: 'Password must be at least 8 characters.' });
+      return;
+    }
+
+    const tokenRow = db.prepare(`
+      SELECT prt.user_id, prt.expires_at, prt.used
+      FROM password_reset_tokens prt
+      WHERE prt.token = ?
+    `).get(token) as { user_id: number; expires_at: string; used: number } | undefined;
+
+    if (!tokenRow) {
+      res.status(400).json({ success: false, message: 'Invalid or expired reset token.' });
+      return;
+    }
+    if (tokenRow.used === 1) {
+      res.status(400).json({ success: false, message: 'This reset link has already been used.' });
+      return;
+    }
+    if (new Date(tokenRow.expires_at) < new Date()) {
+      res.status(400).json({ success: false, message: 'Reset link has expired. Please request a new one.' });
+      return;
+    }
+
+    const newHash = await hashPassword(newPassword);
+    db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newHash, tokenRow.user_id);
+    db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE token = ?').run(token);
+
+    res.json({ success: true, message: 'Password updated successfully. You can now log in.' });
+  } catch (error: any) {
+    console.error('[Auth] Reset password error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 });
 

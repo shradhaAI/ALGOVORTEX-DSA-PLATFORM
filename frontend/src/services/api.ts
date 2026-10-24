@@ -171,4 +171,19 @@ export const api = {
       method: 'DELETE',
     });
   },
+
+  // Password Reset
+  async requestPasswordReset(email: string): Promise<{ success: boolean; message: string }> {
+    return request('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    return request('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
+    });
+  },
 };

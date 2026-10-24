@@ -6,6 +6,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProblemListPage } from './pages/ProblemListPage';
 import { ProblemWorkspacePage } from './pages/ProblemWorkspacePage';
@@ -25,6 +26,7 @@ export function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/problems" element={<ProblemListPage />} />
           <Route path="/problems/:slug" element={<ProblemWorkspacePage />} />
           <Route path="/visualizer" element={<AlgorithmVisualizerPage />} />

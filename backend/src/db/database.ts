@@ -133,6 +133,17 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_progress_user ON user_progress(user_id);
     CREATE INDEX IF NOT EXISTS idx_problems_topic ON problems(topic_slug);
     CREATE INDEX IF NOT EXISTS idx_problems_difficulty ON problems(difficulty);
+
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      token TEXT NOT NULL,
+      expires_at DATETIME NOT NULL,
+      used INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_prt_token ON password_reset_tokens(token);
   `);
 
   console.log('[Database] SQLite initialized successfully at:', dbPath);

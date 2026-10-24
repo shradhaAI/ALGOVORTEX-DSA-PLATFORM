@@ -1,335 +1,495 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import {
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
-  Code2,
-  LayoutGrid,
-  Trophy,
-  BarChart2,
-  Crown,
-  AlertCircle,
-  CheckCircle2,
-} from 'lucide-react';
-import { EmberParticles } from '../components/EmberParticles';
+import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
-export const LoginPage: React.FC = () => {
-  const { login } = useAuth();
+/* ─────────────────────────────────────────────────────────────────────────────
+   Google "G" SVG logo (no dependency on external image)
+───────────────────────────────────────────────────────────────────────────── */
+const GoogleIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+    <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z" />
+    <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z" />
+    <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 10.02 0 12s.45 3.82 1.25 5.42l4.03-3.15z" />
+    <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z" />
+  </svg>
+);
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Shared card-level background style (dark brown-black + subtle dot grid)
+───────────────────────────────────────────────────────────────────────────── */
+const PAGE_BG =
+  'min-h-screen w-full flex flex-col items-center justify-center ' +
+  'bg-[#0f0b07] ' +
+  // subtle dot-grid overlay via CSS bg-image
+  'bg-[radial-gradient(circle,rgba(255,255,255,0.04)_1px,transparent_1px)] ' +
+  '[background-size:28px_28px] ' +
+  'px-4 py-10 relative overflow-hidden';
+
+const WARM_GLOW =
+  'pointer-events-none absolute inset-0 ' +
+  'bg-[radial-gradient(ellipse_at_50%_80%,rgba(180,70,10,0.22)_0%,transparent_65%)]';
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Combined Login + Signup card (tab-switched)
+   Exported individually so routing works, but they share this component.
+───────────────────────────────────────────────────────────────────────────── */
+type Tab = 'login' | 'signup';
+
+interface AuthCardProps {
+  defaultTab: Tab;
+}
+
+const AuthCard: React.FC<AuthCardProps> = ({ defaultTab }) => {
+  const { login, register } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [tab, setTab] = useState<Tab>(defaultTab);
 
-  const [identifier, setIdentifier] = useState('');
+  /* ── Login state ── */
+  const [loginId, setLoginId] = useState('');
+  const [loginPass, setLoginPass] = useState('');
+  const [showLoginPass, setShowLoginPass] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  /* ── Signup state ── */
+  const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [interest, setInterest] = useState('Data Structures & Algorithms');
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [signupError, setSignupError] = useState<string | null>(null);
+  const [signupLoading, setSignupLoading] = useState(false);
 
-  // Quick fill demo accounts
-  const fillDemoStudent = () => {
-    setIdentifier('demo@algovortex.com');
-    setPassword('GrindEra@2026');
-  };
-
-  const fillDemoAdmin = () => {
-    setIdentifier('admin@algovortex.com');
-    setPassword('AlgoAdmin@2026');
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  /* ── Handlers ── */
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setIsLoading(true);
-
+    setLoginError(null);
+    if (!loginId.trim() || !loginPass) {
+      setLoginError('Please enter your email/username and password.');
+      return;
+    }
+    setLoginLoading(true);
     try {
-      await login(identifier, password);
-      const destination = (location.state as any)?.from?.pathname || '/dashboard';
-      navigate(destination, { replace: true });
+      await login(loginId.trim(), loginPass);
+      const dest = (location.state as any)?.from?.pathname || '/dashboard';
+      navigate(dest, { replace: true });
     } catch (err: any) {
-      setError(err.message || 'Invalid email/username or password.');
+      setLoginError(err.message || 'Invalid credentials. Please try again.');
     } finally {
-      setIsLoading(false);
+      setLoginLoading(false);
     }
   };
 
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSignupError(null);
+    if (!fullName.trim() || !username.trim() || !email.trim() || !password) {
+      setSignupError('All fields are required.');
+      return;
+    }
+    if (password.length < 8) {
+      setSignupError('Password must be at least 8 characters.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setSignupError('Passwords do not match.');
+      return;
+    }
+    if (!termsAccepted) {
+      setSignupError('Please accept the AlgoVortex terms of service and privacy policy.');
+      return;
+    }
+    setSignupLoading(true);
+    try {
+      await register({ full_name: fullName, username, email, password, confirmPassword });
+      navigate('/dashboard', { replace: true });
+    } catch (err: any) {
+      setSignupError(err.message || 'Registration failed. Please try again.');
+    } finally {
+      setSignupLoading(false);
+    }
+  };
+
+  const handleGoogleClick = () => {
+    // Google OAuth requires GOOGLE_CLIENT_ID configured on backend
+    alert(
+      'Google Sign-In requires a GOOGLE_CLIENT_ID in your backend .env file.\n' +
+      'Configure OAuth credentials at: https://console.cloud.google.com/'
+    );
+  };
+
+  /* ── Shared input class ── */
+  const inputCls =
+    'w-full rounded-xl border border-[#3a2a1a] bg-[#1c1410] py-3 pl-10 pr-4 ' +
+    'text-sm text-white placeholder-gray-500 outline-none ' +
+    'transition-colors focus:border-orange-500 focus:ring-1 focus:ring-orange-500/60';
+
+  const inputClsNoIcon =
+    'w-full rounded-xl border border-[#3a2a1a] bg-[#1c1410] py-3 px-4 ' +
+    'text-sm text-white placeholder-gray-500 outline-none ' +
+    'transition-colors focus:border-orange-500 focus:ring-1 focus:ring-orange-500/60';
+
+  const iconCls = 'pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-500';
+
   return (
-    <div className="relative flex min-h-screen w-full flex-col justify-between overflow-hidden bg-[#07070a] px-4 py-8 md:px-12 lg:px-20">
-      {/* Background Ember Particles */}
-      <EmberParticles />
+    <div className={PAGE_BG}>
+      {/* Warm background glow */}
+      <div className={WARM_GLOW} aria-hidden="true" />
 
-      {/* Atmospheric cracked floor gradient overlay */}
+      {/* Auth Card */}
       <div
-        className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(circle_at_50%_120%,rgba(234,88,12,0.18)_0%,rgba(10,10,14,0.95)_60%,#060608_100%)] opacity-90"
-        aria-hidden="true"
-      />
-
-      {/* Header spacer */}
-      <div className="z-10 flex w-full justify-between items-center">
-        <Link to="/" className="flex items-center space-x-2.5 text-xs text-orange-400/80 hover:text-orange-300 transition-colors">
-          <span>&larr; Back to AlgoVortex Home</span>
-        </Link>
-        <div className="flex items-center space-x-2 text-xs">
-          <span className="text-gray-400">Quick fill demo:</span>
+        className={`
+          relative z-10 w-full rounded-2xl border border-orange-700/50
+          bg-[#1a100a]/95 shadow-[0_0_60px_rgba(180,70,10,0.30)]
+          backdrop-blur-xl
+          ${tab === 'login' ? 'max-w-md' : 'max-w-lg'}
+          transition-all duration-300
+        `}
+        style={{ padding: '28px 32px 32px' }}
+      >
+        {/* ── Tab Switcher ── */}
+        <div className="mb-7 flex rounded-full bg-[#261810] p-1 border border-[#3a2a1a]">
           <button
             type="button"
-            onClick={fillDemoStudent}
-            className="rounded border border-orange-500/40 bg-orange-950/40 px-2 py-0.5 text-orange-300 hover:bg-orange-900/60 transition-colors"
+            onClick={() => { setTab('login'); setLoginError(null); }}
+            className={`flex-1 rounded-full py-2.5 text-sm font-bold transition-all duration-200 ${
+              tab === 'login'
+                ? 'bg-gradient-to-r from-orange-500 to-amber-400 text-white shadow-md'
+                : 'text-gray-400 hover:text-white'
+            }`}
           >
-            Student
+            Login
           </button>
           <button
             type="button"
-            onClick={fillDemoAdmin}
-            className="rounded border border-amber-500/40 bg-amber-950/40 px-2 py-0.5 text-amber-300 hover:bg-amber-900/60 transition-colors"
+            onClick={() => { setTab('signup'); setSignupError(null); }}
+            className={`flex-1 rounded-full py-2.5 text-sm font-bold transition-all duration-200 ${
+              tab === 'signup'
+                ? 'bg-gradient-to-r from-orange-500 to-amber-400 text-white shadow-md'
+                : 'text-gray-400 hover:text-white'
+            }`}
           >
-            Admin
+            Create Account
           </button>
         </div>
-      </div>
 
-      {/* Main Split Grid matching Image 3 Reference */}
-      <div className="relative z-10 mx-auto my-auto grid w-full max-w-6xl grid-cols-1 items-center gap-12 py-6 lg:grid-cols-12 lg:gap-8">
-        {/* Left Column: Official Logo, GRINDING ERA, Features */}
-        <div className="flex flex-col items-center text-center lg:col-span-6 lg:items-start lg:text-left">
-          {/* Logo Illustration with Vines */}
-          <div className="relative mb-3 flex flex-col items-center lg:items-start">
-            <div className="relative h-44 w-44 md:h-52 md:w-52">
-              <img
-                src="/assets/logo_dark.png"
-                alt="AlgoVortex Fox"
-                className="h-full w-full object-contain filter drop-shadow-[0_0_25px_rgba(234,88,12,0.3)]"
-              />
-            </div>
-          </div>
-
-          {/* Glowing amber flare divider */}
-          <div className="relative my-4 flex h-[2px] w-48 items-center justify-center bg-gradient-to-r from-transparent via-orange-500 to-transparent lg:w-64">
-            <div className="absolute h-2 w-2 rounded-full bg-orange-400 shadow-[0_0_10px_#f97316]" />
-          </div>
-
-          {/* GRINDING ERA Metallic Badge & Slogan */}
-          <div className="my-2">
-            <h2 className="font-brand text-3xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-b from-amber-100 via-orange-400 to-amber-700 md:text-5xl drop-shadow-[0_4px_12px_rgba(234,88,12,0.4)]">
-              GRINDING ERA
-            </h2>
-            <p className="mt-2 text-xs font-semibold tracking-[0.35em] text-orange-400/90 md:text-sm">
-              CODE. SOLVE. CONQUER.
-            </p>
-          </div>
-
-          {/* 5 Feature Shortcut Pills */}
-          <div className="mt-8 grid grid-cols-5 gap-2 rounded-2xl border border-orange-500/25 bg-[#0e0e14]/70 p-2.5 shadow-xl backdrop-blur-md sm:gap-3">
-            <Link
-              to="/problems"
-              className="flex flex-col items-center rounded-xl p-2 transition-all hover:bg-orange-500/10 group"
-            >
-              <Code2 className="h-5 w-5 text-orange-400 transition-transform group-hover:scale-110" />
-              <span className="mt-1.5 text-[9px] font-bold tracking-wider text-gray-300 group-hover:text-white">
-                DSA PROBLEMS
-              </span>
-            </Link>
-
-            <Link
-              to="/problems"
-              className="flex flex-col items-center rounded-xl p-2 transition-all hover:bg-orange-500/10 group"
-            >
-              <LayoutGrid className="h-5 w-5 text-orange-400 transition-transform group-hover:scale-110" />
-              <span className="mt-1.5 text-[9px] font-bold tracking-wider text-gray-300 group-hover:text-white">
-                CATEGORIES
-              </span>
-            </Link>
-
-            <Link
-              to="/contests"
-              className="flex flex-col items-center rounded-xl p-2 transition-all hover:bg-orange-500/10 group"
-            >
-              <Trophy className="h-5 w-5 text-orange-400 transition-transform group-hover:scale-110" />
-              <span className="mt-1.5 text-[9px] font-bold tracking-wider text-gray-300 group-hover:text-white">
-                CONTESTS
-              </span>
-            </Link>
-
-            <Link
-              to="/dashboard"
-              className="flex flex-col items-center rounded-xl p-2 transition-all hover:bg-orange-500/10 group"
-            >
-              <BarChart2 className="h-5 w-5 text-orange-400 transition-transform group-hover:scale-110" />
-              <span className="mt-1.5 text-[9px] font-bold tracking-wider text-gray-300 group-hover:text-white">
-                PROGRESS
-              </span>
-            </Link>
-
-            <Link
-              to="/leaderboard"
-              className="flex flex-col items-center rounded-xl p-2 transition-all hover:bg-orange-500/10 group"
-            >
-              <Crown className="h-5 w-5 text-orange-400 transition-transform group-hover:scale-110" />
-              <span className="mt-1.5 text-[9px] font-bold tracking-wider text-gray-300 group-hover:text-white">
-                LEADERBOARD
-              </span>
-            </Link>
-          </div>
-        </div>
-
-        {/* Right Column: Cinematic Login Card */}
-        <div className="flex justify-center lg:col-span-6 lg:justify-end">
-          <div className="w-full max-w-md rounded-3xl border border-orange-500/35 bg-[#0f0f15]/90 p-8 shadow-[0_0_40px_rgba(249,115,22,0.18)] backdrop-blur-xl sm:p-10">
-            {/* Card Header */}
-            <div className="mb-8 text-center">
-              <h1 className="font-brand text-2xl font-black tracking-widest text-white sm:text-3xl">
-                WELCOME BACK
-              </h1>
-              <p className="mt-2 text-xs text-gray-400">
-                Login to continue your <span className="text-orange-400 font-semibold">DSA</span> journey
-              </p>
-            </div>
-
-            {/* Error Notification */}
-            {error && (
-              <div className="mb-5 flex items-center space-x-2 rounded-xl border border-red-500/30 bg-red-950/40 p-3 text-xs text-red-300">
-                <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
-                <span>{error}</span>
+        {/* ══════════════ LOGIN FORM ══════════════ */}
+        {tab === 'login' && (
+          <form onSubmit={handleLogin} noValidate>
+            {/* Error */}
+            {loginError && (
+              <div className="mb-5 flex items-start space-x-2 rounded-xl border border-red-500/40 bg-red-950/40 p-3 text-xs text-red-300">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+                <span>{loginError}</span>
               </div>
             )}
 
-            {/* Login Form */}
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Email / Username */}
+            {/* Email / Username */}
+            <div className="mb-4">
+              <label className="mb-2 block text-sm font-medium text-gray-200">Email or Username</label>
+              <div className="relative">
+                <div className={iconCls}><Mail className="h-4 w-4" /></div>
+                <input
+                  type="text"
+                  autoComplete="username"
+                  value={loginId}
+                  onChange={(e) => setLoginId(e.target.value)}
+                  placeholder=""
+                  className={inputCls}
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div className="mb-3">
+              <label className="mb-2 block text-sm font-medium text-gray-200">Password</label>
+              <div className="relative">
+                <div className={iconCls}><Lock className="h-4 w-4" /></div>
+                <input
+                  type={showLoginPass ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={loginPass}
+                  onChange={(e) => setLoginPass(e.target.value)}
+                  placeholder=""
+                  className={`${inputCls} pr-10`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLoginPass(!showLoginPass)}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-500 hover:text-gray-300"
+                  tabIndex={-1}
+                  aria-label={showLoginPass ? 'Hide password' : 'Show password'}
+                >
+                  {showLoginPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Forgot password */}
+            <div className="mb-5 text-left">
+              <Link
+                to="/forgot-password"
+                className="text-sm font-medium text-orange-400 hover:text-orange-300 hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
+
+            {/* Login button */}
+            <button
+              type="submit"
+              disabled={loginLoading}
+              className="mb-4 w-full rounded-full bg-gradient-to-r from-orange-500 to-amber-400 py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:from-orange-400 hover:to-amber-300 disabled:opacity-60"
+            >
+              {loginLoading ? (
+                <span className="flex items-center justify-center space-x-2">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  <span>Logging in…</span>
+                </span>
+              ) : 'Login'}
+            </button>
+
+            {/* OR divider */}
+            <div className="relative mb-4 flex items-center">
+              <div className="flex-1 border-t border-[#3a2a1a]" />
+              <span className="mx-3 text-xs uppercase tracking-widest text-gray-500">OR</span>
+              <div className="flex-1 border-t border-[#3a2a1a]" />
+            </div>
+
+            {/* Google */}
+            <button
+              type="button"
+              onClick={handleGoogleClick}
+              className="mb-5 flex w-full items-center justify-center space-x-3 rounded-full border border-[#3a2a1a] bg-[#261810] py-3 text-sm font-medium text-white transition-colors hover:border-orange-600/50 hover:bg-[#2d1e12]"
+            >
+              <GoogleIcon className="h-5 w-5" />
+              <span>Continue with Google</span>
+            </button>
+
+            {/* Footer links */}
+            <p className="text-center text-sm text-gray-400">
+              New to the vortex?{' '}
+              <button
+                type="button"
+                onClick={() => setTab('signup')}
+                className="font-semibold text-orange-400 hover:text-orange-300 hover:underline"
+              >
+                Create an account
+              </button>
+            </p>
+            <p className="mt-2 text-center text-sm text-gray-500">
+              <Link to="/" className="hover:text-gray-300 hover:underline transition-colors">
+                Back to home
+              </Link>
+            </p>
+          </form>
+        )}
+
+        {/* ══════════════ SIGNUP FORM ══════════════ */}
+        {tab === 'signup' && (
+          <form onSubmit={handleSignup} noValidate>
+            {/* Error */}
+            {signupError && (
+              <div className="mb-5 flex items-start space-x-2 rounded-xl border border-red-500/40 bg-red-950/40 p-3 text-xs text-red-300">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+                <span>{signupError}</span>
+              </div>
+            )}
+
+            {/* Row 1: Full Name + Username */}
+            <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-2 block text-xs font-medium text-gray-300">
-                  Email or Username
-                </label>
+                <label className="mb-2 block text-sm font-medium text-gray-200">Full Name</label>
+                <input
+                  type="text"
+                  autoComplete="name"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder=""
+                  className={inputClsNoIcon}
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-200">Username</label>
                 <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400">
-                    <Mail className="h-4 w-4" />
+                  <div className={iconCls}>
+                    {/* Person icon inline SVG */}
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
                   </div>
                   <input
                     type="text"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    required
-                    placeholder="Enter your email or username"
-                    className="w-full rounded-xl border border-white/10 bg-[#16161f] py-3 pl-10 pr-4 text-sm text-white placeholder-gray-400 transition-colors focus:border-orange-500 focus:bg-[#1a1a26] focus:outline-none focus:ring-1 focus:ring-orange-500"
+                    autoComplete="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder=""
+                    className={inputCls}
                   />
                 </div>
               </div>
+            </div>
 
-              {/* Password */}
+            {/* Row 2: Email (full width) */}
+            <div className="mb-4">
+              <label className="mb-2 block text-sm font-medium text-gray-200">Email</label>
+              <input
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder=""
+                className={inputClsNoIcon}
+              />
+            </div>
+
+            {/* Row 3: Password + Confirm Password */}
+            <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <label className="text-xs font-medium text-gray-300">Password</label>
-                  <a
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      alert('Password reset link has been dispatched to your registered email address.');
-                    }}
-                    className="text-xs text-orange-400/90 hover:text-orange-300 hover:underline"
-                  >
-                    Forgot Password?
-                  </a>
-                </div>
+                <label className="mb-2 block text-sm font-medium text-gray-200">Password</label>
                 <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400">
-                    <Lock className="h-4 w-4" />
-                  </div>
                   <input
-                    type={showPassword ? 'text' : 'password'}
+                    type={showPass ? 'text' : 'password'}
+                    autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    required
-                    placeholder="Enter your password"
-                    className="w-full rounded-xl border border-white/10 bg-[#16161f] py-3 pl-10 pr-10 text-sm text-white placeholder-gray-400 transition-colors focus:border-orange-500 focus:bg-[#1a1a26] focus:outline-none focus:ring-1 focus:ring-orange-500"
+                    placeholder=""
+                    className={`${inputClsNoIcon} pr-10`}
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-400 hover:text-gray-200"
+                    onClick={() => setShowPass(!showPass)}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-500 hover:text-gray-300"
+                    tabIndex={-1}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-200">Confirm Password</label>
+                <input
+                  type={showPass ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder=""
+                  className={inputClsNoIcon}
+                />
+              </div>
+            </div>
 
-              {/* Fiery Gradient LOGIN Button */}
+            {/* Interest dropdown */}
+            <div className="mb-4">
+              <label className="mb-2 block text-sm font-medium text-gray-200">Interest</label>
+              <div className="relative">
+                <select
+                  value={interest}
+                  onChange={(e) => setInterest(e.target.value)}
+                  className={`${inputClsNoIcon} pr-8 appearance-none cursor-pointer`}
+                >
+                  <option>Data Structures & Algorithms</option>
+                  <option>Competitive Programming</option>
+                  <option>System Design</option>
+                  <option>Interview Prep (FAANG)</option>
+                  <option>Web Development</option>
+                  <option>Machine Learning</option>
+                  <option>General Computer Science</option>
+                </select>
+                {/* Chevron */}
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-500">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Terms checkbox */}
+            <div className="mb-5 flex items-start space-x-3">
               <button
-                type="submit"
-                disabled={isLoading}
-                className="glow-btn-fire flex w-full items-center justify-center rounded-xl py-3.5 text-sm font-bold tracking-wider text-white uppercase shadow-lg transition-all disabled:opacity-50"
+                type="button"
+                role="checkbox"
+                aria-checked={termsAccepted}
+                onClick={() => setTermsAccepted(!termsAccepted)}
+                className={`mt-0.5 h-5 w-5 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${
+                  termsAccepted
+                    ? 'border-orange-500 bg-orange-500'
+                    : 'border-orange-500/60 bg-transparent'
+                }`}
               >
-                {isLoading ? (
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                ) : (
-                  'LOGIN'
+                {termsAccepted && (
+                  <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
                 )}
               </button>
+              <label className="text-sm text-gray-400 leading-snug">
+                I agree to the <span className="font-semibold text-white">ALGOVORTEX</span>{' '}
+                <a href="#" className="text-orange-400 hover:underline">terms of service</a> and{' '}
+                <a href="#" className="text-orange-400 hover:underline">privacy policy</a>.
+              </label>
+            </div>
 
-              {/* "or" Divider */}
-              <div className="relative my-4 flex items-center justify-center">
-                <div className="w-full border-t border-white/10" />
-                <span className="absolute bg-[#0f0f15] px-3 text-[11px] uppercase tracking-wider text-gray-400">
-                  or
+            {/* Create Account button */}
+            <button
+              type="submit"
+              disabled={signupLoading}
+              className="mb-4 w-full rounded-full bg-gradient-to-r from-orange-500 to-amber-400 py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:from-orange-400 hover:to-amber-300 disabled:opacity-60"
+            >
+              {signupLoading ? (
+                <span className="flex items-center justify-center space-x-2">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  <span>Creating account…</span>
                 </span>
-              </div>
+              ) : 'Create Account'}
+            </button>
 
-              {/* Social Login Options */}
-              <div className="space-y-3">
-                <button
-                  type="button"
-                  onClick={() => alert('Google OAuth provider is ready to be connected with your GOOGLE_CLIENT_ID.')}
-                  className="flex w-full items-center justify-center space-x-3 rounded-xl border border-white/10 bg-[#14141e] py-2.5 text-xs font-medium text-gray-200 transition-colors hover:border-orange-500/40 hover:bg-[#1b1b28]"
-                >
-                  <svg className="h-4 w-4" viewBox="0 0 24 24">
-                    <path
-                      fill="#4285F4"
-                      d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
-                    />
-                    <path
-                      fill="#34A853"
-                      d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"
-                    />
-                    <path
-                      fill="#FBBC05"
-                      d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 10.02 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
-                    />
-                    <path
-                      fill="#EA4335"
-                      d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-                    />
-                  </svg>
-                  <span>Continue with Google</span>
-                </button>
+            {/* OR divider */}
+            <div className="relative mb-4 flex items-center">
+              <div className="flex-1 border-t border-[#3a2a1a]" />
+              <span className="mx-3 text-xs uppercase tracking-widest text-gray-500">OR</span>
+              <div className="flex-1 border-t border-[#3a2a1a]" />
+            </div>
 
-                <button
-                  type="button"
-                  onClick={() => alert('GitHub OAuth provider is ready to be connected with your GITHUB_CLIENT_ID.')}
-                  className="flex w-full items-center justify-center space-x-3 rounded-xl border border-white/10 bg-[#14141e] py-2.5 text-xs font-medium text-gray-200 transition-colors hover:border-orange-500/40 hover:bg-[#1b1b28]"
-                >
-                  <svg className="h-4 w-4 fill-current text-white" viewBox="0 0 24 24">
-                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-                  </svg>
-                  <span>Continue with GitHub</span>
-                </button>
-              </div>
+            {/* Google */}
+            <button
+              type="button"
+              onClick={handleGoogleClick}
+              className="mb-5 flex w-full items-center justify-center space-x-3 rounded-full border border-[#3a2a1a] bg-[#261810] py-3 text-sm font-medium text-white transition-colors hover:border-orange-600/50 hover:bg-[#2d1e12]"
+            >
+              <GoogleIcon className="h-5 w-5" />
+              <span>Continue with Google</span>
+            </button>
 
-              {/* Sign up link */}
-              <div className="pt-2 text-center text-xs text-gray-400">
-                New here?{' '}
-                <Link to="/signup" className="font-semibold text-orange-400 hover:text-orange-300 hover:underline">
-                  Create an account
-                </Link>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer Banner matching Image 3 */}
-      <div className="relative z-10 text-center py-2 text-xs font-mono tracking-widest text-orange-400/80">
-        BUILT FOR CODERS. DRIVEN BY PASSION. &lt;/&gt;
+            {/* Footer links */}
+            <p className="text-center text-sm text-gray-400">
+              Already have an account?{' '}
+              <button
+                type="button"
+                onClick={() => setTab('login')}
+                className="font-semibold text-orange-400 hover:text-orange-300 hover:underline"
+              >
+                Login
+              </button>
+            </p>
+            <p className="mt-2 text-center text-sm text-gray-500">
+              <Link to="/" className="hover:text-gray-300 hover:underline transition-colors">
+                Back to home
+              </Link>
+            </p>
+          </form>
+        )}
       </div>
     </div>
   );
 };
+
+/* ─── Exported page components (referenced by React Router) ─── */
+export const LoginPage: React.FC = () => <AuthCard defaultTab="login" />;
+export const SignupPage: React.FC = () => <AuthCard defaultTab="signup" />;
