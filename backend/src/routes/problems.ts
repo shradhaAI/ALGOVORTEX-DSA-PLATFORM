@@ -1,11 +1,11 @@
-import { Router, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { db } from '../db/database.js';
 import { optionalAuth, requireAuth, AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
 
 // Get topics with problem counts
-router.get('/topics', (_req, res: Response): void => {
+router.get('/topics', (_req: Request, res: Response): void => {
   try {
     const topics = db.prepare(`
       SELECT t.*, COUNT(p.id) as problem_count

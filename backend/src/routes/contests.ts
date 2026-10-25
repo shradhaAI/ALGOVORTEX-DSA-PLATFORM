@@ -1,9 +1,9 @@
-import { Router, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { db } from '../db/database.js';
 
 const router = Router();
 
-router.get('/', (_req, res: Response): void => {
+router.get('/', (_req: Request, res: Response): void => {
   try {
     const contests = db.prepare(`SELECT * FROM contests ORDER BY start_time DESC`).all() as any[];
 
@@ -22,7 +22,7 @@ router.get('/', (_req, res: Response): void => {
   }
 });
 
-router.get('/:slug', (req, res: Response): void => {
+router.get('/:slug', (req: Request, res: Response): void => {
   try {
     const contest = db.prepare(`SELECT * FROM contests WHERE slug = ?`).get(req.params.slug) as any;
 

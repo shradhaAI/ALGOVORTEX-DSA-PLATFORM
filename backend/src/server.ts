@@ -26,7 +26,7 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 app.use(
   cors({
-    origin: (origin, callback) => {
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
       if (!origin) return callback(null, true);
       if (allowedOrigins.includes('*')) return callback(null, true);
       if (
@@ -48,7 +48,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Lazy init DB for serverless
 let dbInitialized = false;
-app.use(async (_req, _res, next) => {
+app.use(async (_req: express.Request, _res: express.Response, next: express.NextFunction) => {
   if (!dbInitialized) {
     try {
       await seedDatabase();
@@ -61,7 +61,7 @@ app.use(async (_req, _res, next) => {
 });
 
 // Request Logger in dev
-app.use((req, _res, next) => {
+app.use((req: express.Request, _res: express.Response, next: express.NextFunction) => {
   if (process.env.NODE_ENV !== 'production') {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   }
@@ -69,7 +69,7 @@ app.use((req, _res, next) => {
 });
 
 // Health check
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', (_req: express.Request, res: express.Response) => {
   res.json({
     status: 'online',
     platform: 'AlgoVortex API',

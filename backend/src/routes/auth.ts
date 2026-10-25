@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { db } from '../db/database.js';
 import { hashPassword, comparePassword, generateToken, requireAuth, AuthRequest } from '../middleware/auth.js';
 import crypto from 'crypto';
@@ -7,7 +7,7 @@ import { OAuth2Client } from 'google-auth-library';
 const router = Router();
 
 // Google Sign-In
-router.post('/google', async (req, res: Response): Promise<void> => {
+router.post('/google', async (req: Request, res: Response): Promise<void> => {
   try {
     const { credential } = req.body;
 
@@ -133,7 +133,7 @@ router.post('/google', async (req, res: Response): Promise<void> => {
 });
 
 // Register
-router.post('/register', async (req, res: Response): Promise<void> => {
+router.post('/register', async (req: Request, res: Response): Promise<void> => {
   try {
     const { full_name, email, username, password, confirmPassword } = req.body;
 
@@ -202,7 +202,7 @@ router.post('/register', async (req, res: Response): Promise<void> => {
 });
 
 // Login
-router.post('/login', async (req, res: Response): Promise<void> => {
+router.post('/login', async (req: Request, res: Response): Promise<void> => {
   try {
     const { identifier, password } = req.body;
 
@@ -304,7 +304,7 @@ router.post('/update-profile', requireAuth, (req: AuthRequest, res: Response): v
 });
 
 // ── Forgot Password ──────────────────────────────────────────────────────────
-router.post('/forgot-password', async (req, res: Response): Promise<void> => {
+router.post('/forgot-password', async (req: Request, res: Response): Promise<void> => {
   try {
     const { email } = req.body;
     if (!email) {
@@ -347,7 +347,7 @@ router.post('/forgot-password', async (req, res: Response): Promise<void> => {
 });
 
 // ── Reset Password ───────────────────────────────────────────────────────────
-router.post('/reset-password', async (req, res: Response): Promise<void> => {
+router.post('/reset-password', async (req: Request, res: Response): Promise<void> => {
   try {
     const { token, newPassword } = req.body;
     if (!token || !newPassword) {

@@ -1,9 +1,9 @@
-import { Router, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { db } from '../db/database.js';
 
 const router = Router();
 
-router.get('/', (_req, res: Response): void => {
+router.get('/', (_req: Request, res: Response): void => {
   try {
     // All-time leaderboard: score = (Easy * 20) + (Medium * 50) + (Hard * 100)
     const leaderboard = db.prepare(`
