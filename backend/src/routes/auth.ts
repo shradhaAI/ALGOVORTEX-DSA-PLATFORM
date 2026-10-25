@@ -2,8 +2,135 @@ import { Router, Response } from 'express';
 import { db } from '../db/database.js';
 import { hashPassword, comparePassword, generateToken, requireAuth, AuthRequest } from '../middleware/auth.js';
 import crypto from 'crypto';
+import { OAuth2Client } from 'google-auth-library';
 
 const router = Router();
+
+// Google Sign-In
+router.post('/google', async (req, res: Response): Promise<void> => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      res.status(400).json({ success: false, message: 'Google credential token is required.' });
+      return;
+    }
+
+    const googleClientId = process.env.GOOGLE_CLIENT_ID;
+    if (!googleClientId) {
+      res.status(500).json({
+        success: false,
+        message: 'Google Sign-In is not configured on the backend. Please configure GOOGLE_CLIENT_ID.',
+      });
+      return;
+    }
+
+    const client = new OAuth2Client(googleClientId);
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: googleClientId,
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload || !payload.email) {
+      res.status(400).json({ success: false, message: 'Invalid Google token payload.' });
+      return;
+    }
+
+    if (!payload.email_verified) {
+      res.status(400).json({ success: false, message: 'Google email address is not verified.' });
+      return;
+    }
+
+    const googleId = payload.sub;
+    const email = payload.email.toLowerCase().trim();
+    const fullName = payload.name || payload.given_name || email.split('@')[0];
+    const avatarUrl = payload.picture || '';
+
+    // Check existing by google_id
+    let userRow = db.prepare(`
+      SELECT id, username, email, full_name, avatar_url, role, bio
+      FROM users
+      WHERE google_id = ?
+    `).get(googleId) as any;
+
+    if (!userRow) {
+      // Check existing by email
+      userRow = db.prepare(`
+        SELECT id, username, email, full_name, avatar_url, role, bio
+        FROM users
+        WHERE email = ?
+      `).get(email) as any;
+
+      if (userRow) {
+        // Link google_id and update avatar if empty
+        db.prepare(`
+          UPDATE users
+          SET google_id = ?,
+              avatar_url = CASE WHEN (avatar_url IS NULL OR avatar_url = '') THEN ? ELSE avatar_url END,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(googleId, avatarUrl, userRow.id);
+        userRow.avatar_url = userRow.avatar_url || avatarUrl;
+      } else {
+        // Create new user
+        let baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
+        if (baseUsername.length < 3) baseUsername = 'user_' + baseUsername;
+        let finalUsername = baseUsername;
+        let counter = 1;
+        while (db.prepare('SELECT id FROM users WHERE username = ?').get(finalUsername)) {
+          finalUsername = `${baseUsername}_${Math.floor(1000 + Math.random() * 9000)}`;
+          counter++;
+          if (counter > 10) break;
+        }
+
+        const dummyHash = await hashPassword(crypto.randomBytes(32).toString('hex'));
+
+        const insert = db.prepare(`
+          INSERT INTO users (full_name, email, username, password_hash, role, avatar_url, google_id)
+          VALUES (?, ?, ?, ?, 'user', ?, ?)
+        `);
+        const result = insert.run(fullName, email, finalUsername, dummyHash, avatarUrl, googleId);
+        const userId = result.lastInsertRowid as number;
+
+        userRow = {
+          id: userId,
+          username: finalUsername,
+          email,
+          full_name: fullName,
+          avatar_url: avatarUrl,
+          role: 'user',
+          bio: '',
+        };
+      }
+    }
+
+    const user = {
+      id: userRow.id,
+      username: userRow.username,
+      email: userRow.email,
+      full_name: userRow.full_name,
+      avatar_url: userRow.avatar_url,
+      role: userRow.role,
+      bio: userRow.bio,
+    };
+
+    const token = generateToken(user);
+
+    res.json({
+      success: true,
+      message: 'Google Sign-In successful! Welcome to AlgoVortex.',
+      token,
+      user,
+    });
+  } catch (error: any) {
+    console.error('[Auth] Google login error:', error);
+    res.status(401).json({
+      success: false,
+      message: error.message || 'Invalid or expired Google authentication credential.',
+    });
+  }
+});
 
 // Register
 router.post('/register', async (req, res: Response): Promise<void> => {

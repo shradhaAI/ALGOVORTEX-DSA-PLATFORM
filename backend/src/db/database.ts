@@ -1,21 +1,62 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const dataDir = path.resolve(__dirname, '../../data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+function getDatabasePath(): string {
+  if (process.env.SQLITE_PATH) {
+    const customDir = path.dirname(process.env.SQLITE_PATH);
+    try {
+      if (!fs.existsSync(customDir)) {
+        fs.mkdirSync(customDir, { recursive: true });
+      }
+    } catch {
+      // If custom path fails, fall through
+    }
+    return process.env.SQLITE_PATH;
+  }
+
+  let baseDir = process.env.DATA_DIR;
+  if (!baseDir) {
+    if (process.env.VERCEL) {
+      baseDir = path.join(os.tmpdir(), 'algovortex_data');
+    } else {
+      baseDir = path.resolve(__dirname, '../../data');
+    }
+  }
+
+  try {
+    if (!fs.existsSync(baseDir)) {
+      fs.mkdirSync(baseDir, { recursive: true });
+    }
+    // Verify write permissions
+    const testFile = path.join(baseDir, '.write_test');
+    fs.writeFileSync(testFile, 'ok');
+    fs.unlinkSync(testFile);
+  } catch {
+    // Fallback to os.tmpdir() in read-only serverless filesystems
+    baseDir = path.join(os.tmpdir(), 'algovortex_data');
+    if (!fs.existsSync(baseDir)) {
+      fs.mkdirSync(baseDir, { recursive: true });
+    }
+  }
+
+  return path.join(baseDir, 'algovortex.db');
 }
 
-const dbPath = path.join(dataDir, 'algovortex.db');
+const dbPath = getDatabasePath();
 export const db = new Database(dbPath);
 
 // Enable WAL mode and foreign keys for high performance and integrity
-db.pragma('journal_mode = WAL');
+try {
+  db.pragma('journal_mode = WAL');
+} catch (e) {
+  // In-memory or specific filesystems might not support WAL
+}
 db.pragma('foreign_keys = ON');
 
 export function initDatabase() {
@@ -30,6 +71,7 @@ export function initDatabase() {
       role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin')),
       bio TEXT DEFAULT '',
       github_username TEXT DEFAULT '',
+      google_id TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -145,6 +187,19 @@ export function initDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_prt_token ON password_reset_tokens(token);
   `);
+
+  // Migrations for existing databases
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN google_id TEXT;`);
+  } catch {
+    // Column already exists
+  }
+
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);`);
+  } catch {
+    // Index already exists
+  }
 
   console.log('[Database] SQLite initialized successfully at:', dbPath);
 }

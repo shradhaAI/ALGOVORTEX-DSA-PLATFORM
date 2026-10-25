@@ -41,7 +41,7 @@ interface AuthCardProps {
 }
 
 const AuthCard: React.FC<AuthCardProps> = ({ defaultTab }) => {
-  const { login, register } = useAuth();
+  const { login, register, googleLogin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [tab, setTab] = useState<Tab>(defaultTab);
@@ -116,11 +116,47 @@ const AuthCard: React.FC<AuthCardProps> = ({ defaultTab }) => {
   };
 
   const handleGoogleClick = () => {
-    // Google OAuth requires GOOGLE_CLIENT_ID configured on backend
-    alert(
-      'Google Sign-In requires a GOOGLE_CLIENT_ID in your backend .env file.\n' +
-      'Configure OAuth credentials at: https://console.cloud.google.com/'
-    );
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!googleClientId) {
+      const msg = 'Google Sign-In requires VITE_GOOGLE_CLIENT_ID in your frontend .env file and GOOGLE_CLIENT_ID in your backend .env file.';
+      if (tab === 'login') setLoginError(msg);
+      else setSignupError(msg);
+      return;
+    }
+
+    const google = (window as any).google;
+    if (google?.accounts?.id) {
+      google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: async (response: any) => {
+          if (response?.credential) {
+            try {
+              setLoginLoading(true);
+              setSignupLoading(true);
+              await googleLogin(response.credential);
+              const dest = (location.state as any)?.from?.pathname || '/dashboard';
+              navigate(dest, { replace: true });
+            } catch (err: any) {
+              const errMsg = err.message || 'Google authentication failed.';
+              if (tab === 'login') setLoginError(errMsg);
+              else setSignupError(errMsg);
+            } finally {
+              setLoginLoading(false);
+              setSignupLoading(false);
+            }
+          }
+        },
+      });
+      google.accounts.id.prompt((notification: any) => {
+        if (notification.isNotDisplayed()) {
+          console.log('[Google GIS] Prompt not displayed:', notification.getNotDisplayedReason());
+        }
+      });
+    } else {
+      const msg = 'Google Sign-In SDK is loading. Please verify internet connection and try again.';
+      if (tab === 'login') setLoginError(msg);
+      else setSignupError(msg);
+    }
   };
 
   /* ── Shared input class ── */

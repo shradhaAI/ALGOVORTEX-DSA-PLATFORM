@@ -1,16 +1,49 @@
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const sandboxDir = path.resolve(__dirname, '../../sandbox_temp');
-if (!fs.existsSync(sandboxDir)) {
-  fs.mkdirSync(sandboxDir, { recursive: true });
+function getSandboxDir(): string {
+  if (process.env.SANDBOX_DIR) {
+    try {
+      if (!fs.existsSync(process.env.SANDBOX_DIR)) {
+        fs.mkdirSync(process.env.SANDBOX_DIR, { recursive: true });
+      }
+      return process.env.SANDBOX_DIR;
+    } catch {
+      // Fall through to os.tmpdir()
+    }
+  }
+
+  if (process.env.VERCEL) {
+    const dir = path.join(os.tmpdir(), 'algovortex_sandbox');
+    if (!fs.existsSync(dir)) {
+      try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+    }
+    return dir;
+  }
+
+  const defaultDir = path.resolve(__dirname, '../../sandbox_temp');
+  try {
+    if (!fs.existsSync(defaultDir)) {
+      fs.mkdirSync(defaultDir, { recursive: true });
+    }
+    return defaultDir;
+  } catch {
+    const tmpDir = path.join(os.tmpdir(), 'algovortex_sandbox');
+    if (!fs.existsSync(tmpDir)) {
+      try { fs.mkdirSync(tmpDir, { recursive: true }); } catch {}
+    }
+    return tmpDir;
+  }
 }
+
+const sandboxDir = getSandboxDir();
 
 export interface TestCase {
   id?: number;

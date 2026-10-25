@@ -8,6 +8,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (identifier: string, pass: string) => Promise<void>;
   register: (data: any) => Promise<void>;
+  googleLogin: (credential: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -52,6 +53,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(res.user);
   };
 
+  const googleLogin = async (credential: string) => {
+    const res = await api.googleLogin(credential);
+    localStorage.setItem('algovortex_token', res.token);
+    setToken(res.token);
+    setUser(res.user);
+  };
+
   const logout = () => {
     localStorage.removeItem('algovortex_token');
     setToken(null);
@@ -69,7 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, register, googleLogin, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

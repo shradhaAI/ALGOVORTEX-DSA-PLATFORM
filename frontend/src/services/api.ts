@@ -50,6 +50,13 @@ export const api = {
     });
   },
 
+  async googleLogin(credential: string): Promise<{ success: boolean; token: string; user: User; message: string }> {
+    return request('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ credential }),
+    });
+  },
+
   async getMe(): Promise<{ success: boolean; user: User }> {
     return request('/auth/me');
   },

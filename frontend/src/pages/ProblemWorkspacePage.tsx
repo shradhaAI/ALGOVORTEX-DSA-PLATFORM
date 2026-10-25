@@ -37,6 +37,7 @@ export const ProblemWorkspacePage: React.FC = () => {
   const [language, setLanguage] = useState<string>('python');
   const [code, setCode] = useState<string>('');
   const [selectedTestCaseIdx, setSelectedTestCaseIdx] = useState<number>(0);
+  const [mobileTab, setMobileTab] = useState<'problem' | 'code'>('problem');
 
   // Execution states
   const [isRunning, setIsRunning] = useState<boolean>(false);
@@ -220,10 +221,36 @@ export const ProblemWorkspacePage: React.FC = () => {
     <div className="flex h-screen flex-col overflow-hidden bg-[#07070a] text-gray-200">
       <Navbar />
 
+      {/* Mobile Workspace Tab Switcher (< lg) */}
+      <div className="flex lg:hidden items-center justify-around border-b border-orange-500/20 bg-[#101018] px-3 py-2">
+        <button
+          type="button"
+          onClick={() => setMobileTab('problem')}
+          className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-lg transition-colors ${
+            mobileTab === 'problem'
+              ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40 shadow-sm'
+              : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          Problem Statement
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileTab('code')}
+          className={`flex-1 ml-2 py-1.5 text-center text-xs font-semibold rounded-lg transition-colors ${
+            mobileTab === 'code'
+              ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40 shadow-sm'
+              : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          Code Editor & Runner
+        </button>
+      </div>
+
       {/* Main Workspace Layout */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Panel: Problem Description, Hints, Solutions, Submissions */}
-        <div className="flex w-full flex-col border-r border-orange-500/20 bg-[#0c0c12] lg:w-1/2">
+        <div className={`w-full flex-col border-r border-orange-500/20 bg-[#0c0c12] lg:w-1/2 ${mobileTab === 'problem' ? 'flex' : 'hidden lg:flex'}`}>
           {/* Top Panel Tabs */}
           <div className="flex items-center justify-between border-b border-white/10 bg-[#101018] px-4 py-2">
             <div className="flex space-x-1">
@@ -450,7 +477,7 @@ export const ProblemWorkspacePage: React.FC = () => {
         </div>
 
         {/* Right Panel: Monaco Editor & Bottom Runner Panel */}
-        <div className="flex w-full flex-col bg-[#08080c] lg:w-1/2">
+        <div className={`w-full flex-col bg-[#08080c] lg:w-1/2 ${mobileTab === 'code' ? 'flex' : 'hidden lg:flex'}`}>
           {/* Editor Header Bar */}
           <div className="flex items-center justify-between border-b border-white/10 bg-[#101018] px-4 py-2">
             <div className="flex items-center space-x-3">

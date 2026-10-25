@@ -20,14 +20,45 @@ const PORT = Number(process.env.PORT) || 5000;
 const HOST = '0.0.0.0';
 
 // Middleware
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map((s) => s.trim())
+  : ['http://localhost:5173', 'http://localhost:3000', 'https://algovortex.vercel.app'];
+
 app.use(
   cors({
-    origin: '*',
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes('*')) return callback(null, true);
+      if (
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.vercel.app') ||
+        origin.endsWith('.onrender.com') ||
+        origin.includes('localhost') ||
+        origin.includes('127.0.0.1')
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     credentials: true,
   })
 );
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Lazy init DB for serverless
+let dbInitialized = false;
+app.use(async (_req, _res, next) => {
+  if (!dbInitialized) {
+    try {
+      await seedDatabase();
+      dbInitialized = true;
+    } catch (e) {
+      console.error('[Database Init Error]', e);
+    }
+  }
+  next();
+});
 
 // Request Logger in dev
 app.use((req, _res, next) => {
@@ -72,6 +103,7 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 async function startServer() {
   try {
     await seedDatabase();
+    dbInitialized = true;
 
     app.listen(PORT, HOST, () => {
       console.log(`=================================================`);
@@ -85,4 +117,8 @@ async function startServer() {
   }
 }
 
-startServer();
+if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
+  startServer();
+}
+
+export default app;
