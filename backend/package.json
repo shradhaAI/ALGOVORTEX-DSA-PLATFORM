@@ -5,13 +5,12 @@
   "main": "src/server.ts",
   "type": "module",
   
-"scripts": {
-  "dev": "tsx watch src/server.ts",
-  "start": "tsx src/server.ts",
-  "build": "node ./node_modules/typescript/bin/tsc",
-  "seed": "tsx src/db/seed.ts"
-},
-
+    "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "build": "node ./node_modules/typescript/bin/tsc",
+    "seed": "tsx src/db/seed.ts"
+  },
   "keywords": [
     "algovortex",
     "dsa",
