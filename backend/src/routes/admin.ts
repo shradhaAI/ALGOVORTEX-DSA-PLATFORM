@@ -111,7 +111,7 @@ router.post('/problems', (req: AuthRequest, res: Response): void => {
 // Delete problem
 router.delete('/problems/:id', (req: AuthRequest, res: Response): void => {
   try {
-    const problemId = parseInt(req.params.id, 10);
+    const problemId = parseInt(String(req.params.id), 10);
     db.prepare('DELETE FROM problems WHERE id = ?').run(problemId);
     res.json({ success: true, message: 'Problem deleted successfully.' });
   } catch (error: any) {
