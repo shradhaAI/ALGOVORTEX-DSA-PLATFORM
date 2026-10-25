@@ -142,7 +142,7 @@ router.get('/user/bookmarks', requireAuth, (req: AuthRequest, res: Response): vo
 // Toggle bookmark
 router.post('/:id/bookmark', requireAuth, (req: AuthRequest, res: Response): void => {
   try {
-    const problemId = parseInt(req.params.id, 10);
+    const problemId = parseInt(String(req.params.id), 10);
     const userId = req.user!.id;
 
     const existing = db.prepare('SELECT id FROM bookmarks WHERE user_id = ? AND problem_id = ?').get(userId, problemId);
@@ -162,7 +162,7 @@ router.post('/:id/bookmark', requireAuth, (req: AuthRequest, res: Response): voi
 // Get single problem details
 router.get('/:slugOrId', optionalAuth, (req: AuthRequest, res: Response): void => {
   try {
-    const param = req.params.slugOrId;
+    const param = String(req.params.slugOrId);
     const isNumeric = /^\d+$/.test(param);
 
     const problem = db.prepare(`
