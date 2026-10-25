@@ -1,8 +1,8 @@
-import { spawn, spawnSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import crypto from 'crypto';
+import { spawn, spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import crypto from 'node:crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -159,15 +159,15 @@ async function executeTestCaseIsolated(
     }
     child.stdin.end();
 
-    child.stdout.on('data', (data) => {
+    child.stdout.on('data', (data: Buffer | string) => {
       stdout += data.toString();
     });
 
-    child.stderr.on('data', (data) => {
+    child.stderr.on('data', (data: Buffer | string) => {
       stderr += data.toString();
     });
 
-    child.on('close', (code) => {
+    child.on('close', (code: number | null) => {
       clearTimeout(timer);
       const endTime = process.hrtime.bigint();
       const timeMs = Number(endTime - startTime) / 1_000_000;
@@ -192,7 +192,7 @@ async function executeTestCaseIsolated(
       });
     });
 
-    child.on('error', (err) => {
+    child.on('error', (err: Error) => {
       clearTimeout(timer);
       if (filePath) {
         try {
