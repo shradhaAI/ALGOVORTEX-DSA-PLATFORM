@@ -4,16 +4,14 @@
   "description": "AlgoVortex Production Backend API",
   "main": "src/server.ts",
   "type": "module",
-  "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts",
-<<<<<<< HEAD
-    "build": "node ./node_modules/typescript/bin/tsc",,
-=======
-    "build": "node ./node_modules/typescript/bin/tsc",
->>>>>>> d5d66e1 (Fix package json syntax)
-    "seed": "tsx src/db/seed.ts"
-  },
+  
+"scripts": {
+  "dev": "tsx watch src/server.ts",
+  "start": "tsx src/server.ts",
+  "build": "node ./node_modules/typescript/bin/tsc",
+  "seed": "tsx src/db/seed.ts"
+},
+
   "keywords": [
     "algovortex",
     "dsa",
