@@ -4,13 +4,12 @@
   "description": "AlgoVortex Production Backend API",
   "main": "src/server.ts",
   "type": "module",
-  
   "scripts": {
-  "dev": "tsx watch src/server.ts",
-  "start": "tsx src/server.ts",
-  "build": "tsc",
-  "seed": "tsx src/db/seed.ts"
-},
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "build": "tsc",
+    "seed": "tsx src/db/seed.ts"
+  },
   "keywords": [
     "algovortex",
     "dsa",

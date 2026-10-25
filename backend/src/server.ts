@@ -16,7 +16,8 @@ import adminRoutes from './routes/admin.js';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT) || 5000;
+const HOST = '0.0.0.0';
 
 // Middleware
 app.use(
@@ -72,9 +73,9 @@ async function startServer() {
   try {
     await seedDatabase();
 
-    app.listen(PORT, () => {
+    app.listen(PORT, HOST, () => {
       console.log(`=================================================`);
-      console.log(`🔥 ALGOVORTEX BACKEND RUNNING ON http://localhost:${PORT}`);
+      console.log(`🔥 ALGOVORTEX BACKEND RUNNING ON http://${HOST}:${PORT}`);
       console.log(`⚡ Slogan: CODE. SOLVE. CONQUER. | Theme: GRINDING ERA`);
       console.log(`=================================================`);
     });
