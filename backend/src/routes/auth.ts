@@ -16,11 +16,11 @@ router.post('/google', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const googleClientId = process.env.GOOGLE_CLIENT_ID;
+    const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID;
     if (!googleClientId) {
       res.status(500).json({
         success: false,
-        message: 'Google Sign-In is not configured on the backend. Please configure GOOGLE_CLIENT_ID.',
+        message: 'Google Sign-In is not configured on the backend. Please configure GOOGLE_CLIENT_ID in your environment.',
       });
       return;
     }

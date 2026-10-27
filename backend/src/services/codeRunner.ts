@@ -81,6 +81,28 @@ function cleanString(str: string): string {
   return str.replace(/\r\n/g, '\n').trim();
 }
 
+function sanitizeDiagnostics(text: string, filePath: string, ext: string): string {
+  if (!text) return text;
+  let sanitized = text;
+  if (filePath) {
+    sanitized = sanitized.split(filePath).join(`Solution.${ext}`);
+    try {
+      const forwardPath = filePath.replace(/\\/g, '/');
+      sanitized = sanitized.split(forwardPath).join(`Solution.${ext}`);
+      sanitized = sanitized.split(`file:///${forwardPath}`).join(`Solution.${ext}`);
+      sanitized = sanitized.split(`file://${forwardPath}`).join(`Solution.${ext}`);
+    } catch {}
+  }
+  sanitized = sanitized.replace(/runner_[a-f0-9]+_\d+\.(py|js|ts|java|cpp)/gi, 'Solution.$1');
+  sanitized = sanitized.replace(/runner_[a-f0-9]+\.(py|js|ts|java|cpp)/gi, 'Solution.$1');
+  if (sandboxDir) {
+    sanitized = sanitized.split(sandboxDir).join('.');
+    const forwardSandbox = sandboxDir.replace(/\\/g, '/');
+    sanitized = sanitized.split(forwardSandbox).join('.');
+  }
+  return sanitized;
+}
+
 /**
  * Compile Java code synchronously in an isolated subfolder.
  * Returns { success, errorMsg, javaDir }
@@ -102,9 +124,10 @@ function compileJava(code: string, fileId: string): { success: boolean; errorMsg
     if (compileResult.status !== 0) {
       // Clean up on compile failure
       try { fs.rmSync(javaDir, { recursive: true, force: true }); } catch {}
+      const rawMsg = compileResult.stderr || compileResult.stdout || 'Compilation failed with no output.';
       return {
         success: false,
-        errorMsg: compileResult.stderr || compileResult.stdout || 'Compilation failed with no output.',
+        errorMsg: sanitizeDiagnostics(rawMsg, javaDir, 'java'),
         javaDir,
       };
     }
@@ -114,6 +137,11 @@ function compileJava(code: string, fileId: string): { success: boolean; errorMsg
     try { fs.rmSync(javaDir, { recursive: true, force: true }); } catch {}
     return { success: false, errorMsg: err.message || 'Compilation error', javaDir };
   }
+}
+
+function getPythonCommand(): string {
+  if (process.env.PYTHON_CMD) return process.env.PYTHON_CMD;
+  return process.platform === 'win32' ? 'py' : 'python3';
 }
 
 /**
@@ -134,7 +162,7 @@ async function executeTestCaseIsolated(
 
   if (language === 'python' || language === 'py') {
     ext = 'py';
-    cmd = 'py';
+    cmd = getPythonCommand();
     args = [];
     filePath = path.join(sandboxDir, `runner_${fileId}.${ext}`);
     fs.writeFileSync(filePath, code, 'utf8');
@@ -217,8 +245,8 @@ async function executeTestCaseIsolated(
       }
 
       resolve({
-        stdout,
-        stderr,
+        stdout: sanitizeDiagnostics(stdout, filePath, ext),
+        stderr: sanitizeDiagnostics(stderr, filePath, ext),
         timeMs: Math.round(timeMs),
         timedOut,
         exitCode: code,

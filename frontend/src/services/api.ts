@@ -8,7 +8,8 @@ import {
   Topic,
 } from '../types';
 
-const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '') + '/api';
+const envApiUrl = import.meta.env.VITE_API_URL;
+const API_BASE = (envApiUrl ? envApiUrl.replace(/\/$/, '') : (import.meta.env.PROD ? 'https://algovortex-dsa-platform-13.onrender.com' : '')) + '/api';
 
 function getAuthHeader(): Record<string, string> {
   const token = localStorage.getItem('algovortex_token');

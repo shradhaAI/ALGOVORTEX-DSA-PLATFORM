@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
@@ -64,6 +64,69 @@ const AuthCard: React.FC<AuthCardProps> = ({ defaultTab }) => {
   const [showPass, setShowPass] = useState(false);
   const [signupError, setSignupError] = useState<string | null>(null);
   const [signupLoading, setSignupLoading] = useState(false);
+
+  /* ── Google Identity Services Initialization ── */
+  useEffect(() => {
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!googleClientId) return;
+
+    let mounted = true;
+    const initGsi = () => {
+      const google = (window as any).google;
+      if (google?.accounts?.id && mounted) {
+        try {
+          google.accounts.id.initialize({
+            client_id: googleClientId,
+            callback: async (response: any) => {
+              if (response?.credential) {
+                try {
+                  setLoginLoading(true);
+                  setSignupLoading(true);
+                  await googleLogin(response.credential);
+                  const dest = (location.state as any)?.from?.pathname || '/dashboard';
+                  navigate(dest, { replace: true });
+                } catch (err: any) {
+                  const errMsg = err.message || 'Google authentication failed.';
+                  if (tab === 'login') setLoginError(errMsg);
+                  else setSignupError(errMsg);
+                } finally {
+                  setLoginLoading(false);
+                  setSignupLoading(false);
+                }
+              }
+            },
+          });
+
+          const targetId = tab === 'login' ? 'google-btn-login' : 'google-btn-signup';
+          const el = document.getElementById(targetId);
+          if (el) {
+            el.innerHTML = '';
+            google.accounts.id.renderButton(el, {
+              theme: 'filled_black',
+              size: 'large',
+              shape: 'pill',
+              width: 320,
+              text: tab === 'login' ? 'signin_with' : 'signup_with',
+            });
+          }
+        } catch (e) {
+          console.warn('[Google GIS warning]', e);
+        }
+      }
+    };
+
+    const timer = setInterval(() => {
+      if ((window as any).google?.accounts?.id) {
+        clearInterval(timer);
+        initGsi();
+      }
+    }, 200);
+
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, [tab]);
 
   /* ── Handlers ── */
   const handleLogin = async (e: React.FormEvent) => {
@@ -298,6 +361,7 @@ const AuthCard: React.FC<AuthCardProps> = ({ defaultTab }) => {
             </div>
 
             {/* Google */}
+            <div id="google-btn-login" className="mb-3 flex justify-center empty:hidden" />
             <button
               type="button"
               onClick={handleGoogleClick}
@@ -494,6 +558,7 @@ const AuthCard: React.FC<AuthCardProps> = ({ defaultTab }) => {
             </div>
 
             {/* Google */}
+            <div id="google-btn-signup" className="mb-3 flex justify-center empty:hidden" />
             <button
               type="button"
               onClick={handleGoogleClick}

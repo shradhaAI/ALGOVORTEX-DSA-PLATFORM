@@ -592,7 +592,20 @@ export const ProblemWorkspacePage: React.FC = () => {
 
             {/* Test Case Details & Output */}
             {bottomPanelOpen && (
-              <div className="h-48 overflow-y-auto p-4 text-xs font-mono">
+              <div className="h-56 overflow-y-auto p-4 text-xs font-mono">
+                {/* Prominent Compilation Error Banner */}
+                {executionResult?.verdict === 'Compilation Error' && (
+                  <div className="mb-3 rounded-xl border border-red-500/50 bg-red-950/60 p-3 text-red-200">
+                    <div className="flex items-center space-x-1.5 font-bold text-red-400">
+                      <AlertTriangle className="h-4 w-4" />
+                      <span>Compilation Error</span>
+                    </div>
+                    <pre className="mt-2 overflow-x-auto whitespace-pre-wrap font-mono text-[11px] text-red-300">
+                      {executionResult.outputLog || 'Compilation failed with no diagnostics.'}
+                    </pre>
+                  </div>
+                )}
+
                 {/* Test case tabs */}
                 <div className="flex space-x-2 border-b border-white/5 pb-2">
                   {sampleCases.map((tc, idx) => {
@@ -643,17 +656,48 @@ export const ProblemWorkspacePage: React.FC = () => {
 
                       <div>
                         <div className="text-gray-400 font-bold">Your Output:</div>
-                        <div className="mt-1 rounded bg-[#12121a] p-2 text-orange-300">
-                          {executionResult?.testResults?.[selectedTestCaseIdx]?.userOutput ||
-                            (isRunning ? 'Executing in sandbox...' : 'Run code to see output')}
+                        <div className="mt-1 rounded bg-[#12121a] p-2 text-orange-300 whitespace-pre-wrap font-mono">
+                          {(() => {
+                            const tr = executionResult?.testResults?.[selectedTestCaseIdx];
+                            if (!executionResult) {
+                              return isRunning ? 'Executing in sandbox...' : 'Run code to see output';
+                            }
+                            if (!tr) {
+                              return isRunning ? 'Executing...' : '(No result for this test case)';
+                            }
+                            if (tr.userOutput && tr.userOutput.trim() !== '') {
+                              return tr.userOutput;
+                            }
+                            if (tr.error) {
+                              return '(No stdout produced — error thrown)';
+                            }
+                            return '(Empty output — program produced no text)';
+                          })()}
                         </div>
                       </div>
                     </div>
 
-                    {executionResult?.outputLog && (
+                    {/* Individual Test Case Error/Diagnostic */}
+                    {executionResult?.testResults?.[selectedTestCaseIdx]?.error && (
                       <div className="mt-2 rounded bg-red-950/40 p-2 text-red-300 border border-red-500/30">
-                        <div className="font-bold">Execution Error Log:</div>
-                        <div className="mt-1 whitespace-pre-wrap">{executionResult.outputLog}</div>
+                        <div className="font-bold flex items-center space-x-1">
+                          <AlertTriangle className="h-3.5 w-3.5 text-red-400" />
+                          <span>Runtime Error / Diagnostic:</span>
+                        </div>
+                        <div className="mt-1 whitespace-pre-wrap font-mono">
+                          {executionResult.testResults[selectedTestCaseIdx].error}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Overall Compilation / Sandbox Error Log */}
+                    {executionResult?.outputLog && executionResult.outputLog !== executionResult?.testResults?.[selectedTestCaseIdx]?.error && (
+                      <div className="mt-2 rounded bg-amber-950/40 p-2 text-amber-300 border border-amber-500/30">
+                        <div className="font-bold flex items-center space-x-1">
+                          <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
+                          <span>Compiler / Sandbox Diagnostic Log:</span>
+                        </div>
+                        <div className="mt-1 whitespace-pre-wrap font-mono">{executionResult.outputLog}</div>
                       </div>
                     )}
                   </div>
