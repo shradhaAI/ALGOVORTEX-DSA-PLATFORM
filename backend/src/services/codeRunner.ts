@@ -33,12 +33,19 @@ function getSandboxDir(): string {
     if (!fs.existsSync(defaultDir)) {
       fs.mkdirSync(defaultDir, { recursive: true });
     }
+    // Write package.json with type commonjs so require('fs') works seamlessly
+    try {
+      fs.writeFileSync(path.join(defaultDir, 'package.json'), JSON.stringify({ type: 'commonjs' }), 'utf8');
+    } catch {}
     return defaultDir;
   } catch {
     const tmpDir = path.join(os.tmpdir(), 'algovortex_sandbox');
     if (!fs.existsSync(tmpDir)) {
       try { fs.mkdirSync(tmpDir, { recursive: true }); } catch {}
     }
+    try {
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({ type: 'commonjs' }), 'utf8');
+    } catch {}
     return tmpDir;
   }
 }
@@ -93,8 +100,8 @@ function sanitizeDiagnostics(text: string, filePath: string, ext: string): strin
       sanitized = sanitized.split(`file://${forwardPath}`).join(`Solution.${ext}`);
     } catch {}
   }
-  sanitized = sanitized.replace(/runner_[a-f0-9]+_\d+\.(py|js|ts|java|cpp)/gi, 'Solution.$1');
-  sanitized = sanitized.replace(/runner_[a-f0-9]+\.(py|js|ts|java|cpp)/gi, 'Solution.$1');
+  sanitized = sanitized.replace(/runner_[a-f0-9]+_\d+\.(py|js|cjs|ts|java|c|cpp|rs|rb)/gi, 'Solution.$1');
+  sanitized = sanitized.replace(/runner_[a-f0-9]+\.(py|js|cjs|ts|java|c|cpp|rs|rb)/gi, 'Solution.$1');
   if (sandboxDir) {
     sanitized = sanitized.split(sandboxDir).join('.');
     const forwardSandbox = sandboxDir.replace(/\\/g, '/');
@@ -103,9 +110,22 @@ function sanitizeDiagnostics(text: string, filePath: string, ext: string): strin
   return sanitized;
 }
 
+function checkCommandAvailable(cmd: string): boolean {
+  try {
+    const res = spawnSync(cmd, ['--version'], { encoding: 'utf8', timeout: 3000, windowsHide: true });
+    return res.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+function getPythonCommand(): string {
+  if (process.env.PYTHON_CMD) return process.env.PYTHON_CMD;
+  return process.platform === 'win32' ? 'py' : 'python3';
+}
+
 /**
  * Compile Java code synchronously in an isolated subfolder.
- * Returns { success, errorMsg, javaDir }
  */
 function compileJava(code: string, fileId: string): { success: boolean; errorMsg: string; javaDir: string } {
   const javaDir = path.join(sandboxDir, `java_${fileId}`);
@@ -122,7 +142,6 @@ function compileJava(code: string, fileId: string): { success: boolean; errorMsg
     });
 
     if (compileResult.status !== 0) {
-      // Clean up on compile failure
       try { fs.rmSync(javaDir, { recursive: true, force: true }); } catch {}
       const rawMsg = compileResult.stderr || compileResult.stdout || 'Compilation failed with no output.';
       return {
@@ -139,9 +158,99 @@ function compileJava(code: string, fileId: string): { success: boolean; errorMsg
   }
 }
 
-function getPythonCommand(): string {
-  if (process.env.PYTHON_CMD) return process.env.PYTHON_CMD;
-  return process.platform === 'win32' ? 'py' : 'python3';
+/**
+ * Compile C code if gcc/clang is available.
+ */
+function compileC(code: string, fileId: string): { success: boolean; errorMsg: string; binDir: string; binFile: string } {
+  const binDir = path.join(sandboxDir, `c_${fileId}`);
+  try {
+    fs.mkdirSync(binDir, { recursive: true });
+    const cFile = path.join(binDir, 'Solution.c');
+    const binFile = path.join(binDir, process.platform === 'win32' ? 'Solution.exe' : 'Solution');
+    fs.writeFileSync(cFile, code, 'utf8');
+
+    const compiler = checkCommandAvailable('gcc') ? 'gcc' : 'clang';
+    const compileResult = spawnSync(compiler, ['-O2', 'Solution.c', '-o', binFile], {
+      cwd: binDir,
+      encoding: 'utf8',
+      timeout: 12000,
+      windowsHide: true,
+    });
+
+    if (compileResult.status !== 0) {
+      try { fs.rmSync(binDir, { recursive: true, force: true }); } catch {}
+      const rawMsg = compileResult.stderr || compileResult.stdout || 'Compilation failed.';
+      return { success: false, errorMsg: sanitizeDiagnostics(rawMsg, binDir, 'c'), binDir, binFile };
+    }
+
+    return { success: true, errorMsg: '', binDir, binFile };
+  } catch (err: any) {
+    try { fs.rmSync(binDir, { recursive: true, force: true }); } catch {}
+    return { success: false, errorMsg: err.message || 'C compilation error', binDir, binFile: '' };
+  }
+}
+
+/**
+ * Compile C++ code if g++/clang++ is available.
+ */
+function compileCpp(code: string, fileId: string): { success: boolean; errorMsg: string; binDir: string; binFile: string } {
+  const binDir = path.join(sandboxDir, `cpp_${fileId}`);
+  try {
+    fs.mkdirSync(binDir, { recursive: true });
+    const cppFile = path.join(binDir, 'Solution.cpp');
+    const binFile = path.join(binDir, process.platform === 'win32' ? 'Solution.exe' : 'Solution');
+    fs.writeFileSync(cppFile, code, 'utf8');
+
+    const compiler = checkCommandAvailable('g++') ? 'g++' : 'clang++';
+    const compileResult = spawnSync(compiler, ['-O2', '-std=c++20', 'Solution.cpp', '-o', binFile], {
+      cwd: binDir,
+      encoding: 'utf8',
+      timeout: 12000,
+      windowsHide: true,
+    });
+
+    if (compileResult.status !== 0) {
+      try { fs.rmSync(binDir, { recursive: true, force: true }); } catch {}
+      const rawMsg = compileResult.stderr || compileResult.stdout || 'Compilation failed.';
+      return { success: false, errorMsg: sanitizeDiagnostics(rawMsg, binDir, 'cpp'), binDir, binFile };
+    }
+
+    return { success: true, errorMsg: '', binDir, binFile };
+  } catch (err: any) {
+    try { fs.rmSync(binDir, { recursive: true, force: true }); } catch {}
+    return { success: false, errorMsg: err.message || 'C++ compilation error', binDir, binFile: '' };
+  }
+}
+
+/**
+ * Compile Rust code if rustc is available.
+ */
+function compileRust(code: string, fileId: string): { success: boolean; errorMsg: string; binDir: string; binFile: string } {
+  const binDir = path.join(sandboxDir, `rust_${fileId}`);
+  try {
+    fs.mkdirSync(binDir, { recursive: true });
+    const rsFile = path.join(binDir, 'Solution.rs');
+    const binFile = path.join(binDir, process.platform === 'win32' ? 'Solution.exe' : 'Solution');
+    fs.writeFileSync(rsFile, code, 'utf8');
+
+    const compileResult = spawnSync('rustc', ['-O', 'Solution.rs', '-o', binFile], {
+      cwd: binDir,
+      encoding: 'utf8',
+      timeout: 15000,
+      windowsHide: true,
+    });
+
+    if (compileResult.status !== 0) {
+      try { fs.rmSync(binDir, { recursive: true, force: true }); } catch {}
+      const rawMsg = compileResult.stderr || compileResult.stdout || 'Rust compilation failed.';
+      return { success: false, errorMsg: sanitizeDiagnostics(rawMsg, binDir, 'rs'), binDir, binFile };
+    }
+
+    return { success: true, errorMsg: '', binDir, binFile };
+  } catch (err: any) {
+    try { fs.rmSync(binDir, { recursive: true, force: true }); } catch {}
+    return { success: false, errorMsg: err.message || 'Rust compilation error', binDir, binFile: '' };
+  }
 }
 
 /**
@@ -152,7 +261,8 @@ async function executeTestCaseIsolated(
   code: string,
   input: string,
   fileId: string,
-  javaCompiledDir?: string // Pre-compiled Java dir to avoid re-compiling per test case
+  extraDir?: string,
+  compiledBin?: string
 ): Promise<{ stdout: string; stderr: string; timeMs: number; timedOut: boolean; exitCode: number | null }> {
   let ext = 'js';
   let cmd = 'node';
@@ -167,19 +277,24 @@ async function executeTestCaseIsolated(
     filePath = path.join(sandboxDir, `runner_${fileId}.${ext}`);
     fs.writeFileSync(filePath, code, 'utf8');
   } else if (language === 'javascript' || language === 'js') {
-    ext = 'js';
+    ext = 'cjs';
     cmd = 'node';
     args = ['--max-old-space-size=64'];
     filePath = path.join(sandboxDir, `runner_${fileId}.${ext}`);
     fs.writeFileSync(filePath, code, 'utf8');
   } else if (language === 'java') {
-    // Java: use pre-compiled directory — just run. No filePath needed (dir cleanup handled outside)
     timeoutMs = TIMEOUT_MS_JAVA;
     cmd = 'java';
-    args = ['-cp', javaCompiledDir!, 'Solution'];
-  } else if (language === 'cpp') {
-    // C++ not installed — handled at top-level before this function is called
-    throw new Error('C++ execution requested but compiler not available.');
+    args = ['-cp', extraDir!, 'Solution'];
+  } else if (language === 'c' || language === 'cpp' || language === 'rust') {
+    cmd = compiledBin!;
+    args = [];
+  } else if (language === 'ruby' || language === 'rb') {
+    ext = 'rb';
+    cmd = 'ruby';
+    args = [];
+    filePath = path.join(sandboxDir, `runner_${fileId}.${ext}`);
+    fs.writeFileSync(filePath, code, 'utf8');
   } else {
     throw new Error(`Language "${language}" is not supported in this local sandbox.`);
   }
@@ -190,8 +305,10 @@ async function executeTestCaseIsolated(
     let stderr = '';
     let timedOut = false;
 
-    const spawnArgs = language === 'java' ? args : [...args, filePath];
-    const spawnCwd = language === 'java' ? javaCompiledDir : sandboxDir;
+    const spawnArgs = (language === 'java' || language === 'c' || language === 'cpp' || language === 'rust')
+      ? args
+      : [...args, filePath];
+    const spawnCwd = extraDir || sandboxDir;
 
     const child = spawn(cmd, spawnArgs, {
       cwd: spawnCwd,
@@ -199,7 +316,6 @@ async function executeTestCaseIsolated(
         ...process.env,
         PYTHONDONTWRITEBYTECODE: '1',
         NODE_ENV: 'test',
-        // Restrict Java from loading unnecessary modules
         ...(language === 'java' ? { JAVA_TOOL_OPTIONS: '' } : {}),
       },
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -228,12 +344,11 @@ async function executeTestCaseIsolated(
       stderr += data.toString();
     });
 
-    child.on('close', (code: number | null) => {
+    child.on('close', (closeCode: number | null) => {
       clearTimeout(timer);
       const endTime = process.hrtime.bigint();
       const timeMs = Number(endTime - startTime) / 1_000_000;
 
-      // Clean up temp script files (not Java dirs — handled separately)
       if (filePath) {
         try {
           if (fs.existsSync(filePath)) {
@@ -249,7 +364,7 @@ async function executeTestCaseIsolated(
         stderr: sanitizeDiagnostics(stderr, filePath, ext),
         timeMs: Math.round(timeMs),
         timedOut,
-        exitCode: code,
+        exitCode: closeCode,
       });
     });
 
@@ -294,40 +409,156 @@ export async function executeCode(
   const fileId = crypto.randomBytes(6).toString('hex');
   const normalizedLang = language.toLowerCase();
 
-  // ── C++ graceful unavailability notice ──────────────────────────────────────
+  // ── Language Support & Compiler Availability Checks ─────────────────────────
+  const validLanguages = ['python', 'py', 'java', 'javascript', 'js', 'c', 'cpp', 'c++', 'rust', 'rs', 'ruby', 'rb'];
+  if (!validLanguages.includes(normalizedLang)) {
+    return {
+      verdict: 'Compilation Error',
+      totalTestCases: totalCount,
+      passedCount: 0,
+      executionTimeMs: 0,
+      memoryKb: 0,
+      testResults: [],
+      outputLog: `Language "${language}" is not supported. Supported languages: Python, Java, JavaScript, C, C++, Rust, Ruby.`,
+    };
+  }
+
+  // ── C: Check Compiler ────────────────────────────────────────────────────────
+  let cBinDir: string | undefined;
+  let cBinFile: string | undefined;
+  if (normalizedLang === 'c') {
+    const hasC = checkCommandAvailable('gcc') || checkCommandAvailable('clang');
+    if (!hasC) {
+      return {
+        verdict: 'Compilation Error',
+        totalTestCases: totalCount,
+        passedCount: 0,
+        executionTimeMs: 0,
+        memoryKb: 0,
+        testResults: [],
+        outputLog:
+          'C compiler (gcc or clang) is not installed on this server environment.\n\n' +
+          'To run C code locally:\n' +
+          '  • Windows: Install MinGW-w64 (https://winlibs.com/) or MSYS2\n' +
+          '  • Linux: sudo apt install build-essential\n' +
+          '  • macOS: xcode-select --install\n\n' +
+          'Alternatively, configure JUDGE0_API_URL in backend environment for cloud execution.',
+      };
+    }
+    const cResult = compileC(code, fileId);
+    if (!cResult.success) {
+      return {
+        verdict: 'Compilation Error',
+        totalTestCases: totalCount,
+        passedCount: 0,
+        executionTimeMs: 0,
+        memoryKb: 0,
+        testResults: [],
+        outputLog: `C Compilation Error:\n\n${cResult.errorMsg}`,
+      };
+    }
+    cBinDir = cResult.binDir;
+    cBinFile = cResult.binFile;
+  }
+
+  // ── C++: Check Compiler ──────────────────────────────────────────────────────
+  let cppBinDir: string | undefined;
+  let cppBinFile: string | undefined;
   if (normalizedLang === 'cpp' || normalizedLang === 'c++') {
-    return {
-      verdict: 'Compilation Error',
-      totalTestCases: totalCount,
-      passedCount: 0,
-      executionTimeMs: 0,
-      memoryKb: 0,
-      testResults: [],
-      outputLog:
-        'C++ compiler (g++) is not installed on this machine.\n\n' +
-        'To enable C++ execution locally, install one of:\n' +
-        '  • MinGW-w64 (https://winlibs.com/) and add to PATH\n' +
-        '  • LLVM / Clang (https://releases.llvm.org/)\n' +
-        '  • MSYS2 with pacman -S mingw-w64-x86_64-gcc\n\n' +
-        'Alternatively, configure Judge0 (JUDGE0_API_URL in .env) for cloud-based C++ execution.',
-    };
+    const hasCpp = checkCommandAvailable('g++') || checkCommandAvailable('clang++');
+    if (!hasCpp) {
+      return {
+        verdict: 'Compilation Error',
+        totalTestCases: totalCount,
+        passedCount: 0,
+        executionTimeMs: 0,
+        memoryKb: 0,
+        testResults: [],
+        outputLog:
+          'C++ compiler (g++ or clang++) is not installed on this server environment.\n\n' +
+          'To run C++ code locally:\n' +
+          '  • Windows: Install MinGW-w64 (https://winlibs.com/) or MSYS2\n' +
+          '  • Linux: sudo apt install g++ build-essential\n' +
+          '  • macOS: xcode-select --install\n\n' +
+          'Alternatively, configure JUDGE0_API_URL in backend environment for cloud execution.',
+      };
+    }
+    const cppResult = compileCpp(code, fileId);
+    if (!cppResult.success) {
+      return {
+        verdict: 'Compilation Error',
+        totalTestCases: totalCount,
+        passedCount: 0,
+        executionTimeMs: 0,
+        memoryKb: 0,
+        testResults: [],
+        outputLog: `C++ Compilation Error:\n\n${cppResult.errorMsg}`,
+      };
+    }
+    cppBinDir = cppResult.binDir;
+    cppBinFile = cppResult.binFile;
   }
 
-  // ── Unsupported language check ───────────────────────────────────────────────
-  const supportedLanguages = ['python', 'py', 'javascript', 'js', 'java'];
-  if (!supportedLanguages.includes(normalizedLang)) {
-    return {
-      verdict: 'Compilation Error',
-      totalTestCases: totalCount,
-      passedCount: 0,
-      executionTimeMs: 0,
-      memoryKb: 0,
-      testResults: [],
-      outputLog: `Language "${language}" is not supported. Supported: Python, JavaScript, Java.`,
-    };
+  // ── Rust: Check Compiler ─────────────────────────────────────────────────────
+  let rustBinDir: string | undefined;
+  let rustBinFile: string | undefined;
+  if (normalizedLang === 'rust' || normalizedLang === 'rs') {
+    const hasRust = checkCommandAvailable('rustc');
+    if (!hasRust) {
+      return {
+        verdict: 'Compilation Error',
+        totalTestCases: totalCount,
+        passedCount: 0,
+        executionTimeMs: 0,
+        memoryKb: 0,
+        testResults: [],
+        outputLog:
+          'Rust compiler (rustc) is not installed on this server environment.\n\n' +
+          'To run Rust code locally:\n' +
+          '  • Install Rust via https://rustup.rs/\n' +
+          '  • Verify with: rustc --version\n\n' +
+          'Alternatively, configure JUDGE0_API_URL in backend environment for cloud execution.',
+      };
+    }
+    const rustResult = compileRust(code, fileId);
+    if (!rustResult.success) {
+      return {
+        verdict: 'Compilation Error',
+        totalTestCases: totalCount,
+        passedCount: 0,
+        executionTimeMs: 0,
+        memoryKb: 0,
+        testResults: [],
+        outputLog: `Rust Compilation Error:\n\n${rustResult.errorMsg}`,
+      };
+    }
+    rustBinDir = rustResult.binDir;
+    rustBinFile = rustResult.binFile;
   }
 
-  // ── Java: compile once before running test cases ─────────────────────────────
+  // ── Ruby: Check Interpreter ──────────────────────────────────────────────────
+  if (normalizedLang === 'ruby' || normalizedLang === 'rb') {
+    const hasRuby = checkCommandAvailable('ruby');
+    if (!hasRuby) {
+      return {
+        verdict: 'Compilation Error',
+        totalTestCases: totalCount,
+        passedCount: 0,
+        executionTimeMs: 0,
+        memoryKb: 0,
+        testResults: [],
+        outputLog:
+          'Ruby interpreter is not installed on this server environment.\n\n' +
+          'To run Ruby code locally:\n' +
+          '  • Windows: Install Ruby from https://rubyinstaller.org/\n' +
+          '  • Linux: sudo apt install ruby\n' +
+          '  • macOS: brew install ruby\n\n' +
+          'Alternatively, configure JUDGE0_API_URL in backend environment for cloud execution.',
+      };
+    }
+  }
+
+  // ── Java: Compile once before running test cases ─────────────────────────────
   let javaCompiledDir: string | undefined;
   if (normalizedLang === 'java') {
     const compileResult = compileJava(code, fileId);
@@ -346,88 +577,92 @@ export async function executeCode(
   }
 
   // ── Run each test case ───────────────────────────────────────────────────────
-  for (let i = 0; i < casesToRun.length; i++) {
-    const tc = casesToRun[i];
-    const execRes = await executeTestCaseIsolated(
-      normalizedLang,
-      code,
-      tc.input,
-      `${fileId}_${i}`,
-      javaCompiledDir
-    );
+  try {
+    for (let i = 0; i < casesToRun.length; i++) {
+      const tc = casesToRun[i];
+      const execRes = await executeTestCaseIsolated(
+        normalizedLang,
+        code,
+        tc.input,
+        `${fileId}_${i}`,
+        javaCompiledDir || cBinDir || cppBinDir || rustBinDir,
+        cBinFile || cppBinFile || rustBinFile
+      );
 
-    maxTimeMs = Math.max(maxTimeMs, execRes.timeMs);
+      maxTimeMs = Math.max(maxTimeMs, execRes.timeMs);
 
-    const timeoutLabel = normalizedLang === 'java' ? `> ${TIMEOUT_MS_JAVA}ms` : `> ${TIMEOUT_MS_DEFAULT}ms`;
+      if (execRes.timedOut) {
+        overallVerdict = 'Time Limit Exceeded';
+        logOutput += `\nTest case ${i + 1}: Time Limit Exceeded (>${normalizedLang === 'java' ? TIMEOUT_MS_JAVA : TIMEOUT_MS_DEFAULT}ms)\n`;
+        testResults.push({
+          testCaseIndex: i + 1,
+          isSample: tc.is_sample === 1,
+          passed: false,
+          input: tc.input,
+          userOutput: '',
+          expectedOutput: tc.is_sample === 1 ? tc.expected_output : undefined,
+          error: 'Time Limit Exceeded: Process terminated after timeout.',
+          executionTimeMs: execRes.timeMs,
+        });
+        break;
+      }
 
-    if (execRes.timedOut) {
-      overallVerdict = 'Time Limit Exceeded';
+      if (execRes.exitCode !== 0 && execRes.stderr) {
+        overallVerdict = 'Runtime Error';
+        logOutput += `\nTest case ${i + 1} Runtime Error:\n${execRes.stderr}\n`;
+        testResults.push({
+          testCaseIndex: i + 1,
+          isSample: tc.is_sample === 1,
+          passed: false,
+          input: tc.input,
+          userOutput: execRes.stdout,
+          expectedOutput: tc.is_sample === 1 ? tc.expected_output : undefined,
+          error: execRes.stderr,
+          executionTimeMs: execRes.timeMs,
+        });
+        break;
+      }
+
+      const actual = cleanString(execRes.stdout);
+      const expected = cleanString(tc.expected_output);
+      const passed = actual === expected;
+
+      if (passed) {
+        passedCount++;
+      } else if (overallVerdict === 'Accepted') {
+        overallVerdict = 'Wrong Answer';
+      }
+
       testResults.push({
         testCaseIndex: i + 1,
         isSample: tc.is_sample === 1,
-        passed: false,
+        passed,
         input: tc.input,
-        userOutput: `Time Limit Exceeded (${timeoutLabel})`,
-        expectedOutput: tc.is_sample === 1 ? tc.expected_output : undefined,
-        error: `Execution exceeded time limit. Check for infinite loops or non-optimal algorithms.`,
+        userOutput: actual,
+        expectedOutput: tc.is_sample === 1 ? expected : undefined,
         executionTimeMs: execRes.timeMs,
       });
-      break;
+
+      if (!passed && evaluateAll) {
+        break;
+      }
     }
-
-    if (execRes.exitCode !== 0) {
-      overallVerdict = 'Runtime Error';
-      logOutput = execRes.stderr || 'Process exited with non-zero exit code';
-      testResults.push({
-        testCaseIndex: i + 1,
-        isSample: tc.is_sample === 1,
-        passed: false,
-        input: tc.input,
-        userOutput: execRes.stdout,
-        expectedOutput: tc.is_sample === 1 ? tc.expected_output : undefined,
-        error: execRes.stderr,
-        executionTimeMs: execRes.timeMs,
-      });
-      break;
+  } finally {
+    // Cleanup compiled directories
+    if (javaCompiledDir) {
+      try { fs.rmSync(javaCompiledDir, { recursive: true, force: true }); } catch {}
     }
-
-    const actual = cleanString(execRes.stdout);
-    const expected = cleanString(tc.expected_output);
-    const passed = actual === expected;
-
-    if (passed) {
-      passedCount++;
-    } else if (overallVerdict === 'Accepted') {
-      overallVerdict = 'Wrong Answer';
+    if (cBinDir) {
+      try { fs.rmSync(cBinDir, { recursive: true, force: true }); } catch {}
     }
-
-    testResults.push({
-      testCaseIndex: i + 1,
-      isSample: tc.is_sample === 1,
-      passed,
-      input: tc.input,
-      userOutput: actual,
-      // Never expose hidden test expected output
-      expectedOutput: tc.is_sample === 1 ? expected : undefined,
-      executionTimeMs: execRes.timeMs,
-    });
-
-    // Stop early on first failure during full evaluation to save resources
-    if (!passed && evaluateAll) {
-      break;
+    if (cppBinDir) {
+      try { fs.rmSync(cppBinDir, { recursive: true, force: true }); } catch {}
+    }
+    if (rustBinDir) {
+      try { fs.rmSync(rustBinDir, { recursive: true, force: true }); } catch {}
     }
   }
 
-  // ── Java cleanup: remove compiled class directory ────────────────────────────
-  if (javaCompiledDir) {
-    try {
-      fs.rmSync(javaCompiledDir, { recursive: true, force: true });
-    } catch {
-      // Ignored — cleanup best-effort
-    }
-  }
-
-  // Memory estimation (rough approximation — not actual measurement)
   const baseMemory = normalizedLang === 'java' ? 65000 : 18400;
   const estimatedMemoryKb = baseMemory + Math.floor(Math.random() * 4200);
 

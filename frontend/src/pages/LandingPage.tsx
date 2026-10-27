@@ -98,7 +98,8 @@ export const LandingPage: React.FC = () => {
     async function loadTopics() {
       try {
         const res = await api.getTopics();
-        setTopics(res.topics.slice(0, 12));
+        // Show core categories that have problems
+        setTopics(res.topics.filter((t) => (t.problem_count || 0) > 0));
       } catch {
         // Fallback
       }

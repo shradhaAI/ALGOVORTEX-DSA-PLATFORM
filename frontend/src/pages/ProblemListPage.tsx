@@ -140,8 +140,50 @@ export const ProblemListPage: React.FC = () => {
           </Link>
         </div>
 
+        {/* Category Cards / Boxes */}
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-orange-400 font-brand">
+              Core Categories
+            </span>
+            <span className="text-[11px] text-gray-400">
+              Select any category to view its questions
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-10 gap-2.5">
+            <button
+              onClick={() => updateParam('topic', 'all')}
+              className={`flex flex-col items-center justify-center rounded-xl p-3 text-center transition-all border ${
+                selectedTopic === 'all'
+                  ? 'border-orange-500 bg-orange-500/15 text-white shadow-[0_0_15px_rgba(249,115,22,0.25)]'
+                  : 'border-white/5 bg-[#101018] text-gray-300 hover:border-orange-500/50 hover:bg-[#161622]'
+              }`}
+            >
+              <span className="text-xs font-bold">All</span>
+              <span className="text-[10px] text-gray-400 mt-0.5">{totalProblems}</span>
+            </button>
+            {topics.map((t) => {
+              const isSelected = selectedTopic === t.slug;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => updateParam('topic', t.slug)}
+                  className={`flex flex-col items-center justify-center rounded-xl p-3 text-center transition-all border ${
+                    isSelected
+                      ? 'border-orange-500 bg-orange-500/15 text-white shadow-[0_0_15px_rgba(249,115,22,0.25)]'
+                      : 'border-white/5 bg-[#101018] text-gray-300 hover:border-orange-500/50 hover:bg-[#161622]'
+                  }`}
+                >
+                  <span className="text-xs font-bold truncate w-full">{t.name}</span>
+                  <span className="text-[10px] text-gray-400 mt-0.5">{t.problem_count || 0}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Filter & Search Bar */}
-        <div className="mt-8 grid grid-cols-1 gap-4 rounded-2xl border border-orange-500/20 bg-[#0e0e15]/80 p-4 backdrop-blur-xl md:grid-cols-12">
+        <div className="mt-4 grid grid-cols-1 gap-4 rounded-2xl border border-orange-500/20 bg-[#0e0e15]/80 p-4 backdrop-blur-xl md:grid-cols-12">
           {/* Search Input */}
           <div className="relative md:col-span-4">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />

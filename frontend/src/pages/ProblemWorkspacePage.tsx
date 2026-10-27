@@ -60,10 +60,8 @@ export const ProblemWorkspacePage: React.FC = () => {
         const res = await api.getProblem(slug);
         setProblem(res.problem);
 
-        // Load starter code
-        const starters = res.problem.starterCode || {};
-        const initialCode = starters[language] || starters['python'] || starters['javascript'] || '# Write your solution here\n';
-        setCode(initialCode);
+        // Problem Workspace requires blank editor when opened
+        setCode('');
       } catch (err) {
         console.error('Failed to load problem:', err);
       } finally {
@@ -73,18 +71,13 @@ export const ProblemWorkspacePage: React.FC = () => {
     loadProblem();
   }, [slug]);
 
-  // Update starter code when language changes
+  // Keep editor blank or maintain user code when switching language
   const handleLanguageChange = (newLang: string) => {
     setLanguage(newLang);
-    if (problem?.starterCode && problem.starterCode[newLang]) {
-      setCode(problem.starterCode[newLang]);
-    }
   };
 
   const handleResetCode = () => {
-    if (problem?.starterCode && problem.starterCode[language]) {
-      setCode(problem.starterCode[language]);
-    }
+    setCode('');
   };
 
   const handleToggleBookmark = async () => {
@@ -481,25 +474,24 @@ export const ProblemWorkspacePage: React.FC = () => {
           {/* Editor Header Bar */}
           <div className="flex items-center justify-between border-b border-white/10 bg-[#101018] px-4 py-2">
             <div className="flex items-center space-x-3">
-              {/* Language Switcher */}
+              {/* Language Switcher: Exactly 7 languages in required order */}
               <select
                 value={language}
                 onChange={(e) => handleLanguageChange(e.target.value)}
                 className="rounded-lg border border-white/10 bg-[#161622] py-1.5 px-3 text-xs font-semibold text-orange-300 focus:border-orange-500 focus:outline-none"
               >
-                <optgroup label="── Available ──">
-                  <option value="python">Python 3.13</option>
-                  <option value="javascript">JavaScript (Node.js 24)</option>
-                  <option value="java">Java 24 (JDK)</option>
-                </optgroup>
-                <optgroup label="── Requires Compiler ──">
-                  <option value="cpp">C++ 20 [No Compiler Installed]</option>
-                </optgroup>
+                <option value="python">Python</option>
+                <option value="java">Java</option>
+                <option value="javascript">JavaScript</option>
+                <option value="c">C</option>
+                <option value="cpp">C++</option>
+                <option value="rust">Rust</option>
+                <option value="ruby">Ruby</option>
               </select>
 
               <button
                 onClick={handleResetCode}
-                title="Reset to starter template"
+                title="Clear code editor"
                 className="flex items-center space-x-1 rounded-lg px-2.5 py-1 text-xs text-gray-400 hover:bg-white/5 hover:text-white"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
@@ -524,7 +516,23 @@ export const ProblemWorkspacePage: React.FC = () => {
             <Editor
               height="100%"
               theme="vs-dark"
-              language={language === 'python' ? 'python' : language === 'javascript' ? 'javascript' : language === 'cpp' ? 'cpp' : 'java'}
+              language={
+                language === 'python'
+                  ? 'python'
+                  : language === 'java'
+                  ? 'java'
+                  : language === 'javascript'
+                  ? 'javascript'
+                  : language === 'c'
+                  ? 'c'
+                  : language === 'cpp'
+                  ? 'cpp'
+                  : language === 'rust'
+                  ? 'rust'
+                  : language === 'ruby'
+                  ? 'ruby'
+                  : 'plaintext'
+              }
               value={code}
               onChange={(val) => setCode(val || '')}
               options={{
